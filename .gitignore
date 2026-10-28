@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Rust
+target/
+
+# C / C++ builds
+build/
+*.o
+*.a
+*.so
+*.dylib
+
+# Microcontroller builds
+.pio/
+*.elf
+*.bin
+
+# Secrets
+.env
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
