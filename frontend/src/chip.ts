@@ -183,7 +183,6 @@ function leads(): THREE.InstancedMesh {
       mesh.setMatrixAt(i++, m);
     }
   }
-  mesh.castShadow = true;
   return mesh;
 }
 
@@ -211,7 +210,6 @@ export function buildChip(maxAnisotropy: number): THREE.Group {
   });
 
   const body = new THREE.Mesh(bodyGeometry(), [epoxy, topFace]);
-  body.castShadow = true;
 
   const chip = new THREE.Group();
   chip.add(body, leads());
