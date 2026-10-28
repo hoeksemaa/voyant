@@ -59,7 +59,9 @@ def build(run: Run) -> dict:
             keep = [
                 e
                 for e in events
-                if e.kind == "command" or (e.kind == "byte" and step.bits) or (e.kind == "read" and len(reads) <= MAX_READ_EVENTS)
+                if e.kind == "command"
+                or (e.kind in ("byte", "out") and step.bits)
+                or (e.kind == "read" and len(reads) <= MAX_READ_EVENTS)
             ]
             checks: dict[str, dict] = {}
             for c in run.log.checks:

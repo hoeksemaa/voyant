@@ -140,3 +140,10 @@ def test_vcap1_charges_with_the_figure_25_time_constant():
     tau = ds.VCAP1_R1 * ds.VCAP1_C
     v = host.chip.vcap1.value(t0 + tau)
     assert v == pytest.approx(1.2 * (1 - math.exp(-1)), rel=1e-6)
+
+
+def test_logged_dout_bytes_match_the_frame(run):
+    read = next(e for e in run.log.events if e.kind == "read")
+    out = [e.text for e in run.log.events if e.kind == "out" and read.t0 <= e.t0 < read.t1]
+    assert out[:3] == ["C0", "00", "00"]
+    assert len(out) == 27
