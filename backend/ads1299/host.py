@@ -11,7 +11,7 @@ from . import board
 from . import datasheet as ds
 from .body import Body
 from .chip import Chip
-from .log import WARN, Log
+from .log import WARN, Log, fmt
 from .waves import Digital, Points
 
 # pong-firmware ADS1299_REGISTER_LS, in the order the firmware writes it.
@@ -98,7 +98,7 @@ class Host:
         raw = bytes(self._frame([0x00] * ds.FRAME_BYTES))
         if self.chip.converting:
             ok = self.t < self.chip.next_conv
-            self.log.check(self.t, "read-before-next", ok, f"Read took {(self.t - start) * 1e6:.0f} µs of the 4 ms between results")
+            self.log.check(self.t, "read-before-next", ok, f"Read took {fmt(self.t - start)} of the {fmt(ds.conversion_period(self.chip.dr))} between results", ds.conversion_period(self.chip.dr) - (self.t - start))
         status = int.from_bytes(raw[:3], "big")
         texts = [f"status {status:06X}h"]
         for ch in (1, 2):
@@ -173,7 +173,7 @@ def bring_up(host: Host) -> None:
         host.t,
         "ref-settled",
         ref_age >= ds.REF_STARTUP or WARN,
-        f"Data capture starts {ref_age * 1e3:.0f} ms after the reference was turned on (start-up is 150 ms typical)",
+        f"Data capture starts {fmt(ref_age)} after the reference was turned on (start-up is {fmt(ds.REF_STARTUP)} typical)",
     )
 
 

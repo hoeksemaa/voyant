@@ -18,7 +18,11 @@
     </header>
     <a class="source" href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source</a>
     <nav class="toolbar">
-      <button id="pins-toggle" type="button" aria-pressed="false">Pin view</button>
+      <button type="button" data-mode="pins" aria-pressed="false">Pin view</button>
+      <span class="toolbar-sep"></span>
+      <button type="button" data-mode="bring-up" aria-pressed="false">Bring-up</button>
+      <button type="button" data-mode="steady" aria-pressed="false">Steady state</button>
+      <button type="button" data-mode="shut-down" aria-pressed="false">Shutdown</button>
     </nav>
     <script type="module" src="/src/main.ts"></script>
   </body>

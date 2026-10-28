@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 PASS, WARN, FAIL = "pass", "warn", "fail"
+
+
+def fmt(seconds: float) -> str:
+    """A time in the unit that reads best: 1.73 µs, 41 ms, 3.6 s."""
+    a = abs(seconds)
+    if a >= 1:
+        return f"{seconds:.2f} s"
+    if a >= 1e-3:
+        return f"{seconds * 1e3:.1f} ms"
+    return f"{seconds * 1e6:.2f} µs"
 
 
 @dataclass
@@ -27,6 +38,15 @@ class Check:
     rule: str  # short id, like "tSCCS"
     status: str
     detail: str
+    margin: float = math.inf  # distance from the limit; the smallest one is the closest call
+
+
+def worse(c: Check, s: dict) -> bool:
+    """True if `c` is a worse result than the one kept in `s`: a worse status, or a closer call."""
+    order = {PASS: 0, WARN: 1, FAIL: 2}
+    if order[c.status] != order[s["status"]]:
+        return order[c.status] > order[s["status"]]
+    return c.margin < s["margin"]
 
 
 @dataclass
@@ -120,23 +140,22 @@ class Log:
     def note(self, t: float, text: str) -> None:
         self.notes.append(Note(t, text))
 
-    def check(self, t: float, rule: str, ok: bool | str, detail: str) -> None:
+    def check(self, t: float, rule: str, ok: bool | str, detail: str, margin: float = math.inf) -> None:
         assert rule in RULES, rule
         status = ok if isinstance(ok, str) else (PASS if ok else FAIL)
-        self.checks.append(Check(t, rule, status, detail))
+        self.checks.append(Check(t, rule, status, detail, margin))
 
     def mark(self, name: str, t: float) -> None:
         self.marks[name] = t
 
     def summary(self) -> dict[str, dict]:
-        """Worst result for each rule, with the first time it happened."""
-        order = {PASS: 0, WARN: 1, FAIL: 2}
+        """Worst result for each rule: the worst status, then the closest call to the limit."""
         out: dict[str, dict] = {}
         for c in self.checks:
-            s = out.setdefault(c.rule, {"status": PASS, "count": 0, "failures": 0, "t": c.t, "detail": c.detail})
+            s = out.setdefault(c.rule, {"status": c.status, "count": 0, "failures": 0, "t": c.t, "detail": c.detail, "margin": c.margin})
             s["count"] += 1
             if c.status != PASS:
                 s["failures"] += 1
-            if order[c.status] > order[s["status"]]:
-                s.update(status=c.status, t=c.t, detail=c.detail)
+            if worse(c, s):
+                s.update(status=c.status, t=c.t, detail=c.detail, margin=c.margin)
         return out

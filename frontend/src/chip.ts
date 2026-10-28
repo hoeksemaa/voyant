@@ -179,6 +179,7 @@ function leads(): THREE.InstancedMesh {
 
 export interface Chip {
   group: THREE.Group;
+  body: THREE.Mesh;
   leads: THREE.InstancedMesh; // instance i is pin i + 1
 }
 
@@ -210,5 +211,5 @@ export function buildChip(maxAnisotropy: number): Chip {
   const pins = leads();
   const group = new THREE.Group();
   group.add(body, pins);
-  return { group, leads: pins };
+  return { group, body, leads: pins };
 }
