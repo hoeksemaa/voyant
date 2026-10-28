@@ -1,0 +1,13 @@
+[project]
+name = "ads1299-sim"
+version = "0.1.0"
+description = "A software model of the TI ADS1299 and the Brain Pong firmware that drives it"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
