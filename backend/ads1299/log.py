@@ -11,7 +11,7 @@ PASS, WARN, FAIL = "pass", "warn", "fail"
 class Event:
     t0: float
     t1: float
-    kind: str  # "command", "byte", or "read"
+    kind: str  # "command", "byte" (on DIN), "out" (on DOUT), or "read"
     text: str
 
 

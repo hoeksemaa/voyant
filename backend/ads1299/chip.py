@@ -76,6 +76,7 @@ class Chip:
         self.cmd_start = 0.0
         self.out_bits: list[int] = []
         self.out_pos = 0
+        self.out_byte = 0  # the byte shifted out on DOUT so far
 
     # ---- power ----------------------------------------------------------------------------
 
@@ -296,6 +297,7 @@ class Chip:
             if self.mode == "RDATAC" and self.out_pos == len(self.out_bits):
                 self.out_pos = 0  # in RDATAC, more SCLKs repeat the data from the start
         self.dout.set(t + 10e-9, bit)
+        self.out_byte = ((self.out_byte << 1) | bit) & 0xFF
         return bit
 
     def sclk_fall(self, t: float, din: int) -> None:
@@ -318,6 +320,7 @@ class Chip:
 
     def _byte(self, b: int, t0: float, t: float) -> None:
         self.log.event(t0, t, "byte", f"{b:02X}")
+        self.log.event(t0, t, "out", f"{self.out_byte:02X}")
         if self.rx in ("wreg-n", "rreg-n", "wreg-data"):
             spacing = t - self.last_byte_end
             self.log.check(t, "tSDECODE", spacing >= ds.T_SDECODE, f"{spacing * 1e6:.2f} µs between byte ends (needs ≥ {ds.T_SDECODE * 1e6:.2f} µs)")
