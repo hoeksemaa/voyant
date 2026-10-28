@@ -14,7 +14,7 @@ import numpy as np
 from . import board
 from . import datasheet as ds
 from .body import Body
-from .log import WARN, Log
+from .log import WARN, Log, fmt
 from .waves import Analog, Clock, Digital
 
 SUB = 32  # input samples per conversion period, for the digital filter model
@@ -143,7 +143,7 @@ class Chip:
                 self._power_down(t)
         elif name == "RESET":
             if level and not self.reset_pin and self.powered:
-                self._reset(t, "RESET pin")
+                self._reset(t, "RESET pin released")
             self.reset_pin = bool(level)
         elif name == "START":
             self.start_pin = bool(level)
@@ -164,7 +164,7 @@ class Chip:
             t,
             "reset-after-por",
             ok,
-            f"{how} at {since * 1e3:.1f} ms after power-up (needs ≥ {ds.T_POR * 1e3:.0f} ms); "
+            f"{how} {fmt(since)} after power-up (needs ≥ {fmt(ds.T_POR)}); "
             f"VCAP1 = {vcap1:.2f} V (needs ≥ 1.1 V)",
         )
         self.regs = {a: v for a, (_, v) in ds.REGISTERS.items()}
@@ -270,7 +270,7 @@ class Chip:
         if high and self.cs_low:
             if self.last_fall > self.cs_changed:
                 gap = t - self.last_fall
-                self.log.check(t, "tSCCS", gap >= ds.T_SCCS, f"{gap * 1e6:.2f} µs from the last SCLK falling edge to CS high (needs ≥ {ds.T_SCCS * 1e6:.2f} µs)")
+                self.log.check(t, "tSCCS", gap >= ds.T_SCCS, f"{fmt(gap)} from the last SCLK falling edge to CS high (needs ≥ {fmt(ds.T_SCCS)})", gap - ds.T_SCCS)
             self.cs_low = False
             self.dout.set(t, None)
             self.nbits = 0
@@ -278,7 +278,7 @@ class Chip:
         elif not high and not self.cs_low:
             if self.cs_changed > -math.inf:
                 gap = t - self.cs_changed
-                self.log.check(t, "tCSH", gap >= ds.T_CSH, f"CS high for {gap * 1e6:.2f} µs (needs ≥ {ds.T_CSH * 1e6:.2f} µs)")
+                self.log.check(t, "tCSH", gap >= ds.T_CSH, f"CS high for {fmt(gap)} (needs ≥ {fmt(ds.T_CSH)})", gap - ds.T_CSH)
             self.cs_low = True
             self.dout.set(t, 0 if self.powered else None)
         self.cs_changed = t
@@ -323,7 +323,7 @@ class Chip:
         self.log.event(t0, t, "out", f"{self.out_byte:02X}")
         if self.rx in ("wreg-n", "rreg-n", "wreg-data"):
             spacing = t - self.last_byte_end
-            self.log.check(t, "tSDECODE", spacing >= ds.T_SDECODE, f"{spacing * 1e6:.2f} µs between byte ends (needs ≥ {ds.T_SDECODE * 1e6:.2f} µs)")
+            self.log.check(t, "tSDECODE", spacing >= ds.T_SDECODE, f"{fmt(spacing)} between byte ends (needs ≥ {fmt(ds.T_SDECODE)})", spacing - ds.T_SDECODE)
         self.last_byte_end = t
 
         if self.rx == "idle":
@@ -368,7 +368,7 @@ class Chip:
             self.out_bits = []
         elif name == "RDATAC":
             near = min(abs(t - tc) for tc in [self.next_conv, *(c[0] for c in self.codes[-1:])]) if self.converting else math.inf
-            self.log.check(t, "rdatac-keepout", near >= 4 * ds.T_CLK, f"{near * 1e3:.2f} ms from the nearest DRDY (needs ≥ 4 tCLK)" if near < math.inf else "No conversions running")
+            self.log.check(t, "rdatac-keepout", near >= 4 * ds.T_CLK, f"{fmt(near)} from the nearest DRDY (needs ≥ 4 tCLK)" if near < math.inf else "No conversions running", near)
             self.mode = "RDATAC"
         elif name == "START":
             if self.start_pin:
@@ -379,7 +379,7 @@ class Chip:
             if self.converting:
                 self.stop_after = self.next_conv  # the conversion in progress completes
         elif name == "RESET":
-            self._reset(t, "RESET command")
+            self._reset(t, "RESET command sent")
         elif name == "STANDBY":
             self.standby = True
             self._stop(t)

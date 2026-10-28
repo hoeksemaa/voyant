@@ -132,7 +132,6 @@ export interface PinViewOptions {
   leads: THREE.InstancedMesh;
   maxAnisotropy: number;
   requestRender: () => void;
-  onToggle: (on: boolean) => void;
 }
 
 export class PinView {
@@ -151,7 +150,7 @@ export class PinView {
   private down: { x: number; y: number } | null = null;
   private card = document.createElement("aside");
   private legend = document.createElement("ul");
-  private button: HTMLButtonElement | null = null;
+  private highlight = new Map<number, THREE.Color>();
 
   constructor(private opts: PinViewOptions) {
     this.face = new TopCanvas(-HALF, -HALF, PKG.bodySize, PKG.bodySize, TOP_Y + 0.002, 204.8, opts.maxAnisotropy);
@@ -179,7 +178,6 @@ export class PinView {
     c.addEventListener("pointerleave", () => this.setHovered(null));
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.select(null);
-      if (e.key === "p" && !e.metaKey && !e.ctrlKey) this.toggle();
     });
   }
 
@@ -193,17 +191,25 @@ export class PinView {
       this.legend.append(li);
     }
     document.body.append(this.legend, this.card);
-    this.button = document.querySelector<HTMLButtonElement>("#pins-toggle");
-    this.button?.addEventListener("click", () => this.toggle());
   }
 
-  toggle(): void {
-    this.on = !this.on;
-    this.button?.setAttribute("aria-pressed", String(this.on));
-    document.body.classList.toggle("pins-on", this.on);
-    if (!this.on) this.select(null);
+  get isOn(): boolean {
+    return this.on;
+  }
+
+  setOn(on: boolean): void {
+    if (on === this.on) return;
+    this.on = on;
+    document.body.classList.toggle("pins-on", on);
+    if (!on) this.select(null);
     this.setHovered(null);
-    this.opts.onToggle(this.on);
+    this.opts.requestRender();
+  }
+
+  // Tint some leads (the pins a scope is probing) while the pin view is off.
+  setHighlight(pins: Map<number, string> | null): void {
+    this.highlight = new Map([...(pins ?? [])].map(([no, color]) => [no, new THREE.Color(color)]));
+    this.paintLeads();
     this.opts.requestRender();
   }
 
@@ -225,8 +231,11 @@ export class PinView {
     const c = new THREE.Color();
     const leads = this.opts.leads;
     for (let i = 0; i < PINS.length; i++) {
-      c.setRGB(1, 1, 1).lerp(this.tints[i], 0.8 * this.fade);
       const no = i + 1;
+      c.setRGB(1, 1, 1);
+      const lit = this.highlight.get(no);
+      if (lit) c.lerp(lit, 0.85);
+      c.lerp(this.tints[i], 0.8 * this.fade);
       if (no === this.selected) c.multiplyScalar(1.9);
       else if (no === this.hovered) c.multiplyScalar(1.5);
       leads.setColorAt(i, c);

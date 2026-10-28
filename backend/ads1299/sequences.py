@@ -255,9 +255,9 @@ SEQUENCES = [
             ),
             Step(
                 "One frame, bit by bit",
-                "216 bits: 24 status bits, then 24 bits for each of the 8 channels, MSB first. CH3–CH8 are off and read zero.",
+                "The first 48 of the frame's 216 bits: the 24 status bits, then CH1, MSB first. CH2 to CH8 follow the same way.",
                 "frame",
-                length=88e-6,
+                length=board.CS_DELAY + 6 * (8 / board.SCLK_HZ + board.BYTE_GAP),
                 pad=3e-6,
                 bits=True,
                 view=6.0,

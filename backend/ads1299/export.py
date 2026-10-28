@@ -16,13 +16,12 @@ from pathlib import Path
 import numpy as np
 
 from .host import Run
-from .log import FAIL, PASS, RULES, WARN
+from .log import RULES, worse
 from .sequences import SEQUENCES, add_frame_mark, probes, sample, window
 
 DEFAULT_OUT = Path(__file__).resolve().parents[2] / "frontend" / "public" / "sim" / "run.json"
 SAMPLES_PER_VIEW_SECOND = 110
 MAX_READ_EVENTS = 40
-ORDER = {PASS: 0, WARN: 1, FAIL: 2}
 
 
 def encode(lo: np.ndarray, hi: np.ndarray, vmin: float, vmax: float) -> str | float | None:
@@ -67,10 +66,12 @@ def build(run: Run) -> dict:
             for c in run.log.checks:
                 if not inside(c.t):
                     continue
-                s = checks.setdefault(c.rule, {"rule": c.rule, "status": c.status, "t": c.t, "detail": c.detail, "count": 0})
+                s = checks.setdefault(c.rule, {"rule": c.rule, "status": c.status, "t": c.t, "detail": c.detail, "count": 0, "margin": c.margin})
                 s["count"] += 1
-                if ORDER[c.status] > ORDER[s["status"]]:
-                    s.update(status=c.status, t=c.t, detail=c.detail)
+                if worse(c, s):
+                    s.update(status=c.status, t=c.t, detail=c.detail, margin=c.margin)
+            for s in checks.values():
+                del s["margin"]
             steps.append(
                 {
                     "title": step.title,
@@ -95,7 +96,7 @@ def build(run: Run) -> dict:
             {"id": p.id, "label": p.label, "pins": p.pins, "unit": p.unit, "lo": p.lo, "hi": p.hi} for p in probe_list
         ],
         "rules": {k: {"title": r.title, "cite": r.cite, "quote": r.quote} for k, r in RULES.items()},
-        "summary": run.log.summary(),
+        "summary": {rule: {k: v for k, v in s.items() if k != "margin"} for rule, s in run.log.summary().items()},
         "sequences": sequences,
     }
 
@@ -105,7 +106,7 @@ def main() -> None:
     run = Run()
     doc = build(run)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(doc, separators=(",", ":")))
+    out.write_text(json.dumps(doc, separators=(",", ":"), allow_nan=False))
     print(f"wrote {out} ({out.stat().st_size / 1e3:.0f} kB)")
     for rule, s in doc["summary"].items():
         print(f"  {s['status']:4}  {rule:20} {s['failures']}/{s['count']}  {s['detail']}")
