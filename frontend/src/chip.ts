@@ -1,12 +1,11 @@
 import * as THREE from "three";
 import { MOLD, PKG } from "./package-dims";
+import { HALF, pinPoint, sideRotation } from "./pin-layout";
 import { makeGrainTextures, makeTopTextures } from "./textures";
 
 // Coordinates: millimeters, Y up, seating plane at y = 0.
 // Top view, pin 1 at the lower left: pins 1–16 run along +Z (left to right),
 // 17–32 up +X, 33–48 along −Z (right to left), 49–64 down −X.
-
-const HALF = PKG.bodySize / 2;
 
 // Points around a rounded square, in order of increasing angle in the XZ plane.
 function ring(half: number, radius: number, segments = 6): [number, number][] {
@@ -155,38 +154,35 @@ function leadGeometry(): THREE.BufferGeometry {
 }
 
 function leads(): THREE.InstancedMesh {
-  const n = PKG.pinsPerSide;
+  const count = PKG.pinsPerSide * 4;
   const mat = new THREE.MeshPhysicalMaterial({
     color: 0xe4dfd4, // NiPdAu finish (datasheet "Lead finish"): silver with a faint warm tone
     metalness: 1,
     roughness: 0.16,
     envMapIntensity: 1.4,
   });
-  const mesh = new THREE.InstancedMesh(leadGeometry(), mat, n * 4);
+  const mesh = new THREE.InstancedMesh(leadGeometry(), mat, count);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const one = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
-  // Each side: outward direction (as a rotation about Y), and where pin k sits along it.
-  const sides = [
-    { rot: -Math.PI / 2, at: (s: number) => new THREE.Vector3(s, 0, HALF) }, // pins 1–16
-    { rot: 0, at: (s: number) => new THREE.Vector3(HALF, 0, -s) }, // pins 17–32
-    { rot: Math.PI / 2, at: (s: number) => new THREE.Vector3(-s, 0, -HALF) }, // pins 33–48
-    { rot: Math.PI, at: (s: number) => new THREE.Vector3(-HALF, 0, s) }, // pins 49–64
-  ];
-  let i = 0;
-  for (const side of sides) {
-    q.setFromAxisAngle(up, side.rot);
-    for (let k = 0; k < n; k++) {
-      const s = (k - (n - 1) / 2) * PKG.pitch;
-      m.compose(side.at(s), q, one);
-      mesh.setMatrixAt(i++, m);
-    }
+  const white = new THREE.Color(1, 1, 1);
+  // Instance i is pin i + 1. Each pin also gets a color, so the pin view can tint it.
+  for (let i = 0; i < count; i++) {
+    q.setFromAxisAngle(up, sideRotation(i + 1));
+    m.compose(pinPoint(i + 1, HALF), q, one);
+    mesh.setMatrixAt(i, m);
+    mesh.setColorAt(i, white);
   }
   return mesh;
 }
 
-export function buildChip(maxAnisotropy: number): THREE.Group {
+export interface Chip {
+  group: THREE.Group;
+  leads: THREE.InstancedMesh; // instance i is pin i + 1
+}
+
+export function buildChip(maxAnisotropy: number): Chip {
   const grain = makeGrainTextures();
   const topTex = makeTopTextures();
   for (const t of [topTex.color, topTex.rough, topTex.normal]) t.anisotropy = maxAnisotropy;
@@ -211,7 +207,8 @@ export function buildChip(maxAnisotropy: number): THREE.Group {
 
   const body = new THREE.Mesh(bodyGeometry(), [epoxy, topFace]);
 
-  const chip = new THREE.Group();
-  chip.add(body, leads());
-  return chip;
+  const pins = leads();
+  const group = new THREE.Group();
+  group.add(body, pins);
+  return { group, leads: pins };
 }

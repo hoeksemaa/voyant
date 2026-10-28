@@ -28,6 +28,7 @@ This project simulates the first three parts. The host software runs unchanged.
 ## Status
 
 A 3D model of the chip, built from its datasheet, that you can rotate in the browser.
+Pin view shows what each of the 64 pins does, in the datasheet's words.
 No simulation yet.
 
 ## Layout
