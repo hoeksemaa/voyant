@@ -1,0 +1,69 @@
+:root {
+  --bg-center: #f4f5f7;
+  --bg-edge: #cfd3d9;
+  --ink: #16181c;
+  --muted: #5d636d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, var(--bg-center) 0%, var(--bg-edge) 100%);
+  color: var(--ink);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  touch-action: none; /* let drags rotate the chip instead of scrolling the page */
+}
+
+#stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+#stage canvas:active { cursor: grabbing; }
+
+.label {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  pointer-events: none;
+}
+
+.label h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.label p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.source {
+  position: fixed;
+  top: 26px;
+  right: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.source:hover { color: var(--ink); }
+
+@media (max-width: 480px) {
+  .label { top: 16px; left: 16px; }
+  .source { top: 18px; right: 16px; }
+}

@@ -11,6 +11,10 @@ venv/
 # Rust
 target/
 
+# Frontend
+node_modules/
+dist/
+
 # C / C++ builds
 build/
 *.o
@@ -30,3 +34,5 @@ build/
 .vscode/
 .idea/
 .DS_Store
+.vercel
+.env*.local
