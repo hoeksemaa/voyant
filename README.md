@@ -27,7 +27,13 @@ This project simulates the first three parts. The host software runs unchanged.
 
 ## Status
 
-Just started. Nothing runs yet.
+A 3D model of the chip, built from its datasheet, that you can rotate in the browser.
+No simulation yet.
+
+## Layout
+
+- `frontend/`: the 3D view (Three.js).
+- `reference/`: the chip's datasheet and the board schematics.
 
 ## Author
 
