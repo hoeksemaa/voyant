@@ -1,8 +1,8 @@
 import { GROUPS, type PinGroup } from "./pins";
-import { trace, type ProbeInfo, type RunData, type StepData } from "./sim-data";
+import { trace, type ProbeInfo, type Region, type RunIndex } from "./sim-data";
 
 // Scope panels: inputs to the chip on the left, outputs on the right. Each lane plots one
-// or more probes from the backend run, swept left to right as the step plays.
+// or more probes from the backend run in roll mode: new data enters at the right edge.
 
 interface Lane {
   label: string;
@@ -129,9 +129,13 @@ export class Scopes {
   readonly columns: Record<"in" | "out", HTMLElement>;
   private axis: Record<"in" | "out", HTMLElement>;
   private probes: Map<string, ProbeInfo>;
+  private screen: number;
+  private sps: number;
 
-  constructor(run: RunData) {
+  constructor(run: RunIndex) {
     this.probes = new Map(run.probes.map((p) => [p.id, p]));
+    this.screen = run.screen;
+    this.sps = run.sps;
     this.columns = { in: this.column("in", "Into the chip"), out: this.column("out", "Out of the chip") };
     this.axis = {
       in: this.columns.in.querySelector(".scope-axis")!,
@@ -188,16 +192,43 @@ export class Scopes {
     document.body.classList.toggle("sim-on", on);
   }
 
-  // Draw every lane for `step`, up to the fraction `f` of the sweep.
-  draw(step: StepData, f: number, axisText: string): void {
-    const tNow = step.t0 + f * (step.t1 - step.t0);
-    this.axis.in.textContent = this.axis.out.textContent = axisText;
+  setAxis(text: string): void {
+    this.axis.in.textContent = this.axis.out.textContent = text;
+  }
+
+  // Sample range on screen at playback time `p` (seconds into the region).
+  private window(region: Region, p: number): [number, number] {
+    const k1 = Math.min(region.n, Math.floor(p * this.sps));
+    return [Math.max(0, Math.floor((p - this.screen) * this.sps)), k1];
+  }
+
+  // Probes that change by more than noise on screen right now.
+  moving(region: Region, p: number): Set<string> {
+    const [k0, k1] = this.window(region, p);
+    const out = new Set<string>();
+    for (const probe of this.probes.values()) {
+      const tr = trace(region, probe);
+      if (tr.constant) continue;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let k = k0; k < k1; k++) {
+        if (tr.lo[k] < lo) lo = tr.lo[k];
+        if (tr.hi[k] > hi) hi = tr.hi[k];
+      }
+      if (hi - lo > 0.04 * (probe.hi - probe.lo)) out.add(probe.id);
+    }
+    return out;
+  }
+
+  // Draw every lane at playback time `p` of `region`, played at `rate`.
+  draw(region: Region, p: number, rate: number): void {
+    const tNow = region.t0 + p * rate;
     for (const panel of this.panels) {
-      for (const lane of panel.lanes) this.drawLane(step, lane, f, tNow);
+      for (const lane of panel.lanes) this.drawLane(region, lane, p, rate, tNow);
       if (panel.spec.decode) {
         const kinds = panel.spec.decode === "command" ? ["command"] : ["read"];
         let text = "";
-        for (const [t0, , kind, label] of step.events) {
+        for (const [t0, , kind, label] of region.events) {
           if (t0 > tNow) break;
           if (kinds.includes(kind) || (panel.spec.decode === "read" && label.startsWith("RREG"))) text = label;
         }
@@ -208,7 +239,7 @@ export class Scopes {
     }
   }
 
-  private drawLane(step: StepData, lane: LaneView, f: number, tNow: number): void {
+  private drawLane(region: Region, lane: LaneView, p: number, rate: number, tNow: number): void {
     const { canvas, spec } = lane;
     const dpr = Math.min(window.devicePixelRatio, 2);
     const w = canvas.clientWidth;
@@ -226,14 +257,16 @@ export class Scopes {
     for (let d = 1; d < 10; d++) ctx.fillRect(Math.round((d / 10) * w), 0, 1, h);
     ctx.fillRect(0, Math.round(h / 2), w, 1);
 
-    const n = step.n;
-    const last = Math.min(n - 1, Math.floor(f * n));
-    const col = w / n;
+    const { screen, sps } = this;
+    const [k0, k1] = this.window(region, p);
+    const left = p - screen; // playback time at the left edge
+    const xOf = (k: number) => ((k / sps - left) / screen) * w;
+    const col = w / (screen * sps);
     const pad = spec.digital ? 5 : 4;
     const top = spec.bytes ? 10 : pad; // room for byte labels
 
-    lane.probes.forEach((probe, k) => {
-      const tr = trace(step, probe);
+    lane.probes.forEach((probe, j) => {
+      const tr = trace(region, probe);
       const [lo, hi] = spec.range ?? [probe.lo, probe.hi];
       const y = (v: number) => h - pad - ((v - lo) / (hi - lo)) * (h - pad - top);
       const color = PROBE_STYLE[probe.id].color;
@@ -244,13 +277,13 @@ export class Scopes {
         ctx.globalAlpha = alpha;
         ctx.fillStyle = color;
         let prev = NaN;
-        for (let i = 0; i <= last; i++) {
-          const a = tr.lo[i];
-          const b = tr.hi[i];
-          const x = i * col;
+        for (let k = k0; k < k1; k++) {
+          const a = tr.lo[k];
+          const b = tr.hi[k];
+          const x = xOf(k);
           if (Number.isNaN(a)) {
             // Not driven: a dotted line at mid-height.
-            if (width < 2 && i % 4 === 0) {
+            if (width < 2 && k % 4 === 0) {
               ctx.globalAlpha = 0.35;
               ctx.fillRect(x, h / 2, Math.max(1, col), 1);
               ctx.globalAlpha = alpha;
@@ -270,35 +303,29 @@ export class Scopes {
       }
       ctx.globalAlpha = 1;
 
-      // Live value at the sweep position.
-      const a = tr.lo[last];
-      const b = tr.hi[last];
+      // Live value at the right edge.
+      const k = Math.max(0, k1 - 1);
+      const a = tr.lo[k];
+      const b = tr.hi[k];
       const band = b - a > 0.25 * (hi - lo);
-      lane.values[k].textContent = format((a + b) / 2, probe.unit, !!spec.digital, band);
+      lane.values[j].textContent = format((a + b) / 2, probe.unit, !!spec.digital, band);
     });
 
-    // Decoded bytes over the bits, in bit-by-bit steps.
+    // Decoded bytes over the bits.
     if (spec.bytes) {
       ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      const span = step.t1 - step.t0;
-      for (const [t0, t1, kind, text] of step.events) {
+      for (const [t0, t1, kind, text] of region.events) {
         if (kind !== spec.bytes || t0 > tNow) continue;
-        const x0 = ((t0 - step.t0) / span) * w;
-        const x1 = ((t1 - step.t0) / span) * w;
-        if (x1 - x0 < 14) continue;
+        const x0 = (((t0 - region.t0) / rate - left) / screen) * w;
+        const x1 = (((t1 - region.t0) / rate - left) / screen) * w;
+        if (x1 < 0 || x1 - x0 < 14) continue;
         ctx.fillStyle = "rgba(255, 212, 59, 0.18)";
         ctx.fillRect(x0, 0, x1 - x0 - 1, 9);
         ctx.fillStyle = "#ffe066";
         ctx.fillText(text, (x0 + x1) / 2, 0);
       }
-    }
-
-    // Sweep position.
-    if (f < 1) {
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.fillRect(Math.round((last + 1) * col), 0, 1, h);
     }
   }
 }

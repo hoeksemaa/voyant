@@ -1,59 +1,113 @@
 import type { Curves } from "./curves";
 import type { Scopes } from "./scopes";
-import { formatTime, trace, type ProbeInfo, type RunData, type SequenceData, type StepData } from "./sim-data";
+import { formatTime, loadClip, type Clip, type Region, type RunIndex, type Speed, type StepData } from "./sim-data";
 
-// Plays one sequence step by step. Each step's real-time window is stretched to its own
-// playback length, so the step panel always says how much slower than real time it runs.
+// Plays one sequence at one of three fixed speeds. Playback runs at that speed through each
+// region; between regions (quiet time at the slow speeds) it pauses briefly, then skips ahead.
 
-const HOLD = 1.2; // seconds to rest on a finished step before the next one
-
-function slower(step: StepData): string {
-  const span = step.t1 - step.t0;
-  const factor = step.view / span;
-  if (factor < 1.5) return `${formatTime(span)} of real time, about real speed`;
-  const rounded = Number(factor.toPrecision(2));
-  return `${formatTime(span)} of real time, ${rounded.toLocaleString("en-US")}× slower`;
-}
+const HOLD = 0.7; // seconds to pause before a skip
 
 const ICON = { pass: "✓", warn: "!", fail: "✕" } as const;
 
-// True if the probe changes by more than noise during the step.
-function moves(step: StepData, probe: ProbeInfo): boolean {
-  const tr = trace(step, probe);
-  if (tr.constant) return false;
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (let i = 0; i < step.n; i++) {
-    if (tr.lo[i] < lo) lo = tr.lo[i];
-    if (tr.hi[i] > hi) hi = tr.hi[i];
-  }
-  return hi - lo > 0.04 * (probe.hi - probe.lo);
+const SHORT: Record<string, string> = { real: "Real time", ms: "1 ms / s", us: "1 µs / s" };
+
+function slower(speed: Speed, screen: number): string {
+  const across = `${formatTime(screen * speed.rate)} on screen`;
+  if (speed.rate === 1) return `Real time · ${across}`;
+  return `${Math.round(1 / speed.rate).toLocaleString("en-US")}× slower · ${across}`;
+}
+
+interface LogItem {
+  t: number;
+  step: number;
+  cls: string;
+  html: string;
 }
 
 export class Player {
-  private seq: SequenceData | null = null;
-  private index = 0;
-  private t = 0; // playback seconds into the step
-  private held = 0;
+  private seq: string | null = null;
+  private speed: Speed;
+  private clip: Clip | null = null;
+  private r = 0; // region index
+  private p = 0; // playback seconds into the region
   private playing = false;
+  private hold = 0; // seconds left in the pause before a skip
+  private forced = 0; // the step chosen with the buttons; playback never shows an earlier one
+  private current = -1;
+  private log: LogItem[] = [];
+  private shown = -1;
+  private active = "";
+  private loads = 0;
+
   private panel = document.createElement("section");
-  private shown = { notes: -1, checks: -1 };
+  private el: Record<"count" | "dots" | "title" | "text" | "quote" | "note" | "bar" | "log" | "play", HTMLElement>;
+  private speedButtons: HTMLButtonElement[] = [];
 
   constructor(
-    private run: RunData,
+    private run: RunIndex,
     private scopes: Scopes,
     private curves: Curves,
   ) {
+    this.speed = run.speeds.find((s) => s.id === "ms") ?? run.speeds[0];
     this.panel.className = "step-panel";
     this.panel.hidden = true;
+    this.panel.innerHTML = `
+      <div class="step-head">
+        <span class="step-count"></span>
+        <span class="step-dots"></span>
+        <span class="step-controls">
+          <button class="prev" aria-label="Previous step">‹</button>
+          <button class="play">Pause</button>
+          <button class="next" aria-label="Next step">›</button>
+        </span>
+      </div>
+      <h2></h2>
+      <p class="step-text"></p>
+      <blockquote></blockquote>
+      <div class="step-speed">
+        <span class="speed-buttons" role="group" aria-label="Playback speed"></span>
+        <span class="speed-note"></span>
+      </div>
+      <div class="step-bar"><i></i></div>
+      <ul class="step-log"></ul>`;
+    const q = <T extends HTMLElement>(sel: string) => this.panel.querySelector<T>(sel)!;
+    this.el = {
+      count: q(".step-count"),
+      dots: q(".step-dots"),
+      title: q("h2"),
+      text: q(".step-text"),
+      quote: q("blockquote"),
+      note: q(".speed-note"),
+      bar: q(".step-bar i"),
+      log: q(".step-log"),
+      play: q(".play"),
+    };
+    const group = q(".speed-buttons");
+    run.speeds.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.textContent = SHORT[s.id] ?? s.label;
+      b.title = `${s.label} (key ${i + 1})`;
+      b.addEventListener("click", () => this.setSpeed(s));
+      group.append(b);
+      this.speedButtons.push(b);
+    });
+    q(".prev").addEventListener("click", () => this.jump(this.current - 1));
+    q(".next").addEventListener("click", () => this.jump(this.current + 1));
+    this.el.play.addEventListener("click", () => this.togglePlay());
+    this.el.dots.addEventListener("click", (e) => {
+      const i = (e.target as HTMLElement).dataset.i;
+      if (i !== undefined) this.jump(Number(i));
+    });
     document.body.append(this.panel);
+
     window.addEventListener("keydown", (e) => {
-      if (!this.seq || e.metaKey || e.ctrlKey) return;
+      if (!this.seq || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === " ") {
         e.preventDefault();
         this.togglePlay();
-      } else if (e.key === "ArrowRight") this.go(this.index + 1);
-      else if (e.key === "ArrowLeft") this.go(this.index - 1);
+      } else if (e.key === "ArrowRight") this.jump(this.current + 1);
+      else if (e.key === "ArrowLeft") this.jump(this.current - 1);
+      else if (/^[1-9]$/.test(e.key) && run.speeds[Number(e.key) - 1]) this.setSpeed(run.speeds[Number(e.key) - 1]);
     });
   }
 
@@ -66,36 +120,78 @@ export class Player {
   }
 
   play(id: string): void {
-    this.seq = this.run.sequences.find((s) => s.id === id) ?? null;
-    if (!this.seq) return;
+    this.seq = id;
+    this.clip = null;
     this.panel.hidden = false;
     this.scopes.setVisible(true);
     this.curves.setVisible(true);
-    this.go(0);
-    this.setPlaying(true);
+    this.load(null, true);
   }
 
   close(): void {
     this.seq = null;
+    this.clip = null;
+    this.loads++;
     this.panel.hidden = true;
     this.scopes.setVisible(false);
     this.curves.setVisible(false);
     this.setPlaying(false);
   }
 
+  // Change speed and play the current step again from its start at the new speed.
+  private setSpeed(s: Speed): void {
+    if (!this.seq || s === this.speed) return;
+    this.speed = s;
+    const step = this.clip?.steps[this.current]?.id ?? null;
+    this.load(step, true);
+  }
+
+  private async load(stepId: string | null, autoplay: boolean): Promise<void> {
+    const seq = this.seq!;
+    const n = ++this.loads;
+    this.speedButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(this.run.speeds[i] === this.speed)));
+    this.el.note.textContent = "Loading…";
+    this.panel.classList.add("loading");
+    let clip: Clip;
+    try {
+      clip = await loadClip(seq, this.speed.id);
+    } catch {
+      if (n === this.loads) this.el.note.textContent = "Could not load this speed. Try again.";
+      return;
+    }
+    if (n !== this.loads) return; // closed, or another speed was chosen while loading
+    this.panel.classList.remove("loading");
+    this.clip = clip;
+    for (const s of this.run.speeds) if (s !== this.speed) loadClip(seq, s.id).catch(() => {});
+    this.log = this.buildLog(clip);
+    this.el.dots.innerHTML = clip.steps
+      .map((s, i) => `<button class="dot" data-i="${i}" title="${s.title}"></button>`)
+      .join("");
+    const across = this.run.screen * this.speed.rate;
+    this.scopes.setAxis(`${formatTime(across)} across · ${formatTime(across / 10)} per division`);
+    this.current = -1;
+    this.go(Math.max(0, clip.steps.findIndex((s) => s.id === stepId)));
+    this.setPlaying(autoplay);
+  }
+
   private setPlaying(on: boolean): void {
     this.playing = on;
     this.curves.setPlaying(on);
-    const btn = this.panel.querySelector<HTMLButtonElement>(".play");
-    if (btn) {
-      const atEnd = this.seq && this.index === this.seq.steps.length - 1 && this.t >= this.step.view;
-      btn.textContent = on ? "Pause" : atEnd ? "Replay" : "Play";
-    }
+    this.el.play.textContent = on ? "Pause" : this.atEnd ? "Replay" : "Play";
+  }
+
+  private get region(): Region {
+    return this.clip!.regions[this.r];
+  }
+
+  private get atEnd(): boolean {
+    if (!this.clip) return false;
+    return this.r === this.clip.regions.length - 1 && this.p >= this.region.n / this.run.sps;
   }
 
   private togglePlay(): void {
-    if (!this.seq) return;
-    if (!this.playing && this.index === this.seq.steps.length - 1 && this.t >= this.step.view) {
+    if (!this.clip) return;
+    if (!this.playing && this.atEnd) {
       this.go(0);
       this.setPlaying(true);
       return;
@@ -103,101 +199,156 @@ export class Player {
     this.setPlaying(!this.playing);
   }
 
-  private get step(): StepData {
-    return this.seq!.steps[this.index];
+  // Go to a step from the buttons. After the end, this also starts playback again.
+  private jump(i: number): void {
+    const ended = !this.playing && this.atEnd;
+    this.go(i);
+    if (ended) this.setPlaying(true);
   }
 
   private go(i: number): void {
-    if (!this.seq) return;
-    this.index = Math.max(0, Math.min(this.seq.steps.length - 1, i));
-    this.t = 0;
-    this.held = 0;
-    this.shown = { notes: -1, checks: -1 };
-    this.renderPanel();
-    const step = this.step;
-    const active = new Set(this.run.probes.filter((p) => moves(step, p)).map((p) => p.id));
-    this.curves.setActive(active);
+    if (!this.clip) return;
+    i = Math.max(0, Math.min(this.clip.steps.length - 1, i));
+    const step = this.clip.steps[i];
+    this.r = step.region;
+    this.p = step.p0;
+    this.forced = i;
+    this.hold = 0;
+    this.shown = -1;
+    this.update();
     this.setPlaying(this.playing);
+  }
+
+  private get tNow(): number {
+    return this.region.t0 + this.p * this.speed.rate;
   }
 
   // Advance playback. Returns true while frames are needed.
   tick(dt: number): boolean {
     if (!this.seq) return false;
+    if (!this.clip) return true; // loading
     if (this.playing) {
-      const step = this.step;
-      if (this.t < step.view) {
-        this.t = Math.min(step.view, this.t + dt);
-      } else if (this.index < this.seq.steps.length - 1) {
-        this.held += dt;
-        if (this.held >= HOLD) this.go(this.index + 1);
+      if (this.hold > 0) {
+        this.hold -= dt;
+        if (this.hold <= 0) {
+          this.r++;
+          this.p = (this.region.tp - this.region.t0) / this.speed.rate;
+        }
       } else {
-        this.setPlaying(false);
+        const end = this.region.n / this.run.sps;
+        this.p = Math.min(end, this.p + dt);
+        if (this.p >= end) {
+          if (this.r < this.clip.regions.length - 1) this.hold = HOLD;
+          else this.setPlaying(false);
+        }
       }
     }
-    this.draw();
+    this.update();
     return true; // curves follow the camera, so keep drawing while a sequence is open
   }
 
-  private draw(): void {
-    const step = this.step;
-    const f = this.t / step.view;
-    this.scopes.draw(step, f, `Sweep: ${formatTime(step.t1 - step.t0)} of real time`);
-    this.renderLog(step, step.t0 + f * (step.t1 - step.t0));
-    const bar = this.panel.querySelector<HTMLElement>(".step-bar i");
-    if (bar) bar.style.width = `${(f * 100).toFixed(2)}%`;
+  private update(): void {
+    const clip = this.clip!;
+    const region = this.region;
+    this.scopes.draw(region, this.p, this.speed.rate);
+
+    const active = this.scopes.moving(region, this.p);
+    const key = [...active].sort().join();
+    if (key !== this.active) {
+      this.active = key;
+      this.curves.setActive(active);
+    }
+
+    // The latest step whose moment has passed, but never before the one chosen with the buttons.
+    const t = this.tNow;
+    let latest = 0;
+    clip.steps.forEach((s, i) => {
+      if (s.anchor <= t) latest = i;
+    });
+    const current = Math.max(this.forced, latest);
+    if (current !== this.current) {
+      this.current = current;
+      this.renderStep();
+    }
+
+    const note = this.el.note;
+    if (this.hold > 0) {
+      const next = clip.regions[this.r + 1];
+      note.textContent = `Skipping ahead ${formatTime(next.tp - region.t1)} to the next event`;
+      note.classList.add("skip");
+    } else {
+      note.classList.remove("skip");
+      note.textContent = slower(this.speed, this.run.screen);
+    }
+    this.el.bar.style.width = `${(this.progress() * 100).toFixed(2)}%`;
+    this.renderLog(t);
   }
 
-  private renderPanel(): void {
-    const seq = this.seq!;
-    const step = this.step;
-    const dots = seq.steps
-      .map((s, i) => `<button class="dot${i === this.index ? " on" : ""}${i < this.index ? " done" : ""}" data-i="${i}" title="${s.title}"></button>`)
-      .join("");
-    const quote = step.quote
-      ? `<blockquote>“${step.quote}”<cite>Datasheet ${step.cite}</cite></blockquote>`
-      : `<blockquote class="plain"><cite>${step.cite}</cite></blockquote>`;
-    this.panel.innerHTML = `
-      <div class="step-head">
-        <span class="step-count">${seq.title} · step ${this.index + 1} of ${seq.steps.length}</span>
-        <span class="step-dots">${dots}</span>
-        <span class="step-controls">
-          <button class="prev" aria-label="Previous step">‹</button>
-          <button class="play">Pause</button>
-          <button class="next" aria-label="Next step">›</button>
-        </span>
-      </div>
-      <h2>${step.title}</h2>
-      <p class="step-text">${step.text}</p>
-      ${quote}
-      <p class="step-scale">${slower(step)}</p>
-      <div class="step-bar"><i></i></div>
-      <ul class="step-log"></ul>`;
-    this.panel.querySelector(".prev")!.addEventListener("click", () => this.go(this.index - 1));
-    this.panel.querySelector(".next")!.addEventListener("click", () => this.go(this.index + 1));
-    this.panel.querySelector(".play")!.addEventListener("click", () => this.togglePlay());
-    this.panel.querySelectorAll<HTMLButtonElement>(".dot").forEach((b) =>
-      b.addEventListener("click", () => this.go(Number(b.dataset.i))),
-    );
+  // How far through the whole sequence playback is, from 0 to 1.
+  private progress(): number {
+    const rate = this.speed.rate;
+    let done = 0;
+    let total = 0;
+    this.clip!.regions.forEach((g, i) => {
+      const len = (g.t1 - g.tp) / rate;
+      total += len;
+      if (i < this.r) done += len;
+      if (i === this.r) done += Math.max(0, Math.min(len, this.p - (g.tp - g.t0) / rate));
+    });
+    return total ? done / total : 0;
   }
 
-  // Notes and datasheet checks appear as the sweep reaches them.
-  private renderLog(step: StepData, tNow: number): void {
-    const notes = step.notes.filter(([t]) => t <= tNow);
-    const checks = step.checks.filter((c) => c.t <= tNow);
-    if (notes.length === this.shown.notes && checks.length === this.shown.checks) return;
-    this.shown = { notes: notes.length, checks: checks.length };
-    const items: [number, string][] = [
-      ...notes.map(([t, text]): [number, string] => [t, `<li class="note"><span>+${formatTime(t - step.t0)}</span>${text}</li>`]),
-      ...checks.map((c): [number, string] => {
+  private renderStep(): void {
+    const clip = this.clip!;
+    const step = clip.steps[this.current];
+    const title = this.run.sequences.find((s) => s.id === this.seq)?.title ?? "";
+    this.el.count.textContent = `${title} · step ${this.current + 1} of ${clip.steps.length}`;
+    this.el.dots.querySelectorAll<HTMLElement>(".dot").forEach((d, i) => {
+      d.classList.toggle("on", i === this.current);
+      d.classList.toggle("done", i < this.current);
+    });
+    this.el.title.textContent = step.title;
+    this.el.text.textContent = step.text;
+    this.el.quote.className = step.quote ? "" : "plain";
+    this.el.quote.innerHTML = step.quote
+      ? `“${step.quote}”<cite>Datasheet ${step.cite}</cite>`
+      : `<cite>${step.cite}</cite>`;
+    this.shown = -1;
+  }
+
+  // Notes and datasheet checks for the whole sequence, in time order.
+  private buildLog(clip: Clip): LogItem[] {
+    const items: LogItem[] = [];
+    clip.steps.forEach((step: StepData, i) => {
+      const at = (t: number) => `+${formatTime(t - step.anchor)}`;
+      for (const [t, text] of step.notes) {
+        items.push({ t, step: i, cls: "note", html: `<span>${at(t)}</span>${text}` });
+      }
+      for (const c of step.checks) {
         const rule = this.run.rules[c.rule];
         const times = c.count > 1 ? ` <em>×${c.count}</em>` : "";
         const quote = c.status === "pass" ? "" : `<q>${rule.quote} <cite>${rule.cite}</cite></q>`;
-        return [c.t, `<li class="check ${c.status}"><b>${ICON[c.status]}</b><span><strong>${rule.title}</strong>${times} ${c.detail}${quote}</span></li>`];
-      }),
-    ];
-    items.sort((a, b) => a[0] - b[0]);
-    const log = this.panel.querySelector(".step-log")!;
-    log.innerHTML = items.map(([, html]) => html).join("");
-    log.scrollTop = log.scrollHeight;
+        items.push({
+          t: c.t,
+          step: i,
+          cls: `check ${c.status}`,
+          html: `<b>${ICON[c.status]}</b><span><strong>${rule.title}</strong>${times} ${c.detail}${quote}</span>`,
+        });
+      }
+    });
+    return items.sort((a, b) => a.t - b.t);
+  }
+
+  // Items appear as playback reaches them. Items from earlier steps fade.
+  private renderLog(t: number): void {
+    let n = 0;
+    while (n < this.log.length && this.log[n].t <= t) n++;
+    if (n === this.shown) return;
+    this.shown = n;
+    this.el.log.innerHTML = this.log
+      .slice(0, n)
+      .map((item) => `<li class="${item.cls}${item.step < this.current ? " old" : ""}">${item.html}</li>`)
+      .join("");
+    this.el.log.scrollTop = this.el.log.scrollHeight;
   }
 }
