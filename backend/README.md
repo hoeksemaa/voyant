@@ -11,7 +11,7 @@ A checker compares each step with the datasheet's timing rules.
 python -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
-.venv/bin/python -m ads1299.export   # writes frontend/public/sim/run.json
+.venv/bin/python -m ads1299.export   # writes frontend/public/sim/*.json
 ```
 
 ## What the checker finds in the Brain Pong firmware
@@ -33,4 +33,4 @@ python -m venv .venv
 - `ads1299/body.py`: eye movements, mains hum, and electrode voltages.
 - `ads1299/waves.py`: pin voltages over time.
 - `ads1299/log.py`: decoded bus traffic, notes, and the datasheet rules.
-- `ads1299/sequences.py` and `export.py`: the steps the website plays.
+- `ads1299/sequences.py` and `export.py`: the steps the website plays, at each of the three speeds.

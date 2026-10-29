@@ -10,6 +10,7 @@ from ads1299.body import Body
 from ads1299.chip import Chip
 from ads1299.host import Host, Run
 from ads1299.log import Log
+from ads1299.sequences import SEQUENCES, SPEEDS, add_marks, plan
 
 
 def powered() -> Host:
@@ -147,3 +148,19 @@ def test_logged_dout_bytes_match_the_frame(run):
     out = [e.text for e in run.log.events if e.kind == "out" and read.t0 <= e.t0 < read.t1]
     assert out[:3] == ["C0", "00", "00"]
     assert len(out) == 27
+
+
+def test_each_speed_plays_every_step():
+    run = Run()  # the full run: steady state starts its view 2 s in
+    add_marks(run)
+    for seq in SEQUENCES:
+        for speed in SPEEDS:
+            p = plan(seq, speed, run.log.marks)
+            assert p.steps, (seq.id, speed.id)
+            for a, b in zip(p.regions, p.regions[1:]):
+                assert a.t1 < b.tp  # regions do not overlap; the player skips the gap
+            for anchor, (k, t) in zip(p.anchors, p.starts):
+                reg = p.regions[k]
+                assert reg.tp <= t + 1e-12 and anchor <= reg.t1  # the step's moment plays
+            if speed.id == "real":
+                assert len(p.regions) == 1  # real time never skips

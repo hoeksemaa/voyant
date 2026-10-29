@@ -33,7 +33,7 @@ Pin view shows what each of the 64 pins does, in the datasheet's words.
 A Python model of the chip and the Brain Pong firmware runs bring-up, streaming, and shutdown.
 It checks each step against the datasheet's rules.
 
-The website plays these three sequences step by step, slowed down.
+The website plays these three sequences at three speeds: real time, 1 ms per second, and 1 µs per second.
 Scopes show each signal into and out of the chip, with a curve to each pin it uses.
 
 ## Layout
