@@ -4,26 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <meta name="description" content="A 3D model of the ADS1299 biosignal chip, built from its datasheet." />
+    <meta name="description" content="An ADS1299 register puzzle: edit the chip's firmware until its output matches the target, for EEG, EOG, and EMG." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    <title>ADS1299 Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>ADS1299 register puzzle</title>
   </head>
   <body>
-    <main id="stage"></main>
-    <header class="label">
-      <h1>ADS1299</h1>
-      <p>8-channel biosignal ADC · 64-pin TQFP · 10 × 10 mm</p>
+    <div id="stage"></div>
+    <header class="topbar">
+      <div class="brand">
+        <h1>ADS1299</h1>
+        <p>Edit the firmware until the output matches the target.</p>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Hardware setups"></nav>
+      <div class="links">
+        <button type="button" class="pins-toggle" aria-pressed="false" title="Pin view (P)">Pins</button>
+        <a class="datasheet-link" target="_blank" rel="noopener">Datasheet ↗</a>
+        <a href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source</a>
+        <a class="credit" href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John</a>
+      </div>
     </header>
-    <a class="source" href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source</a>
-    <nav class="toolbar">
-      <button type="button" data-mode="pins" aria-pressed="false">Pin view</button>
-      <span class="toolbar-sep"></span>
-      <button type="button" data-mode="bring-up" aria-pressed="false">Bring-up</button>
-      <button type="button" data-mode="steady" aria-pressed="false">Steady state</button>
-      <button type="button" data-mode="shut-down" aria-pressed="false">Shutdown</button>
-    </nav>
+    <main class="board" id="board"></main>
+    <section class="cards" id="cards" aria-label="Channels"></section>
+    <section class="dock">
+      <div class="dock-panel dock-firmware" id="firmware"></div>
+      <div class="dock-panel dock-datasheet" id="datasheet"></div>
+    </section>
+    <footer class="foot"><a href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John</a></footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
