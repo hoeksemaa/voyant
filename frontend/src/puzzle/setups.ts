@@ -8,7 +8,8 @@ import type { Setup } from "./types";
 // Drawing coordinates (x, y) are 0–1 inside each body drawing:
 // - head: top view, nose up; the subject's left is on the left (10–20 system drawings).
 // - face: front view; the subject's left eye is on the right of the drawing.
-// - arm: right forearm, palm up; elbow on the left, hand on the right.
+// - arm: right forearm, palm up; elbow on the left, hand on the right. 3 gel pads, all on the
+//   forearm (John, 2026-11-02): near the wrist, just below the elbow crease, and on the muscle.
 
 export const SETUPS: Setup[] = [
   {
@@ -80,9 +81,9 @@ export const SETUPS: Setup[] = [
     body: "arm",
     montage: "bipolar",
     electrodes: [
-      { id: "muscle", label: "Forearm muscle", pin: "IN1P", x: 0.4, y: 0.42 },
-      { id: "elbow", label: "Elbow crease", pin: "IN1N", x: 0.12, y: 0.5 },
-      { id: "wrist", label: "Wrist · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
+      { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.38, y: 0.42 },
+      { id: "elbow", label: "Forearm below the elbow crease · gel pad", pin: "IN1N", x: 0.17, y: 0.5 },
+      { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
     ],
     duration: 10,
     phases: [
