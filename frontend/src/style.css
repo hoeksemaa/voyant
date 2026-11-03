@@ -402,7 +402,7 @@ a { color: inherit; }
   color: rgba(255, 255, 255, 0.75);
 }
 .col-in .scope { flex: 0 1 auto; }
-/* Few channels (EMG 1, EOG 2): rows keep a normal height and the card ends under them.
+/* Few channels (EMG 1, EOG 2): rows grow to 260 px and the card ends under them.
    Many channels (EEG 8): rows shrink to fit the column. */
 .scope-out, .scope-target { align-self: start; max-height: 100%; }
 .scope-target { background: var(--scope-quiet); }
@@ -416,8 +416,8 @@ a { color: inherit; }
 
 .rows { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .srow.ch {
-  flex: 1 1 124px;
-  max-height: 124px;
+  flex: 1 1 260px;
+  max-height: 260px;
   min-height: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   transition: background 0.15s ease-out;

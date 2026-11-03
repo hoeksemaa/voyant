@@ -52,12 +52,14 @@ describe("puzzle properties", () => {
     for (const n of [3, 4, 5, 6, 7, 8]) {
       expect(eog.flags.some((f) => f.level === "act" && f.ch === n && f.text === `CH${n} is on, but no electrode is on IN${n}P. The input floats.`)).toBe(true);
     }
-    // EMG: CH1 at the wrong rate; CH2–8 float.
+    // EMG: CH1 at the wrong rate; CH2–8 float (INnP open; INnN is on the SRB1 pad).
     const emg = simulate(EMG, STOCK);
     expect(failing(match(emg, targetFor(EMG)))).toEqual(ALL);
     expect(emg.out[0].rate).toBe(250);
     expect(targetFor(EMG).out[0].rate).toBe(2000);
-    for (const n of [2, 3, 4, 5, 6, 7, 8]) expect(emg.flags.some((f) => f.level === "act" && f.ch === n && /inputs float/.test(f.text))).toBe(true);
+    for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+      expect(emg.flags.some((f) => f.level === "act" && f.ch === n && f.text === `CH${n} is on, but no electrode is on IN${n}P. The input floats.`)).toBe(true);
+    }
   });
 
   test("4. partial fixes give partial progress", () => {

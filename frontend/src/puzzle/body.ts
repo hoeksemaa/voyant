@@ -66,6 +66,13 @@ export interface Body {
 
 // ---- tuning constants (one place) ---------------------------------------------------------
 
+/**
+ * Surface EMG spectrum corners (Shwedyk model, see emgBody). Median frequency ≈ 100 Hz, inside
+ * the usual 50–150 Hz for forearm surface EMG.
+ */
+export const EMG_FL = 60; // Hz
+export const EMG_FH = 120; // Hz
+
 /** Coupling scale per setup: scalp cups through hair (EEG) vs gel pads on bare skin. */
 export const COUPLING = { eeg: 0.015, eog: 0.004, emg: 0.0015 };
 
@@ -97,29 +104,6 @@ function highPass(x: Float64Array, fc: number, fs: number) {
     const xi = x[i];
     y = a * (y + xi - px);
     px = xi;
-    x[i] = y;
-  }
-}
-
-/** RBJ biquad (Q = 0.707), in place. */
-function biquad(x: Float64Array, kind: "lp" | "hp", fc: number, fs: number) {
-  const w = (2 * Math.PI * fc) / fs;
-  const al = Math.sin(w) / (2 * Math.SQRT1_2);
-  const c = Math.cos(w);
-  const a0 = 1 + al;
-  const b0 = kind === "lp" ? (1 - c) / 2 : (1 + c) / 2;
-  const b1 = kind === "lp" ? 1 - c : -(1 + c);
-  const b2 = b0;
-  const a1 = -2 * c;
-  const a2 = 1 - al;
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let i = 0; i < x.length; i++) {
-    const xi = x[i];
-    const y = (b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
-    x2 = x1;
-    x1 = xi;
-    y2 = y1;
-    y1 = y;
     x[i] = y;
   }
 }
@@ -346,14 +330,16 @@ function emgBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
   const mo = [g.range(1.2, 1.9), g.range(0, 6.28), g.range(2.2, 3), g.range(0, 6.28)];
   const trem = [g.range(8, 11), g.range(0, 6.28), g.range(1, 1.6), g.range(0, 6.28)];
 
-  // Surface EMG: white noise, band-pass 20–450 Hz (4th order each side), unit rms. Full rate.
+  // Surface EMG: Gaussian noise with the Shwedyk et al. (1977) spectrum,
+  //   P(f) = k² fh⁴ f² / ((f² + fl²)(f² + fh²)²),
+  // as one high-pass pole at fl and two low-pass poles at fh. P rises as f² below fl, is flat
+  // between, and falls as f⁻⁴ above fh. Unit rms, full rate. (EMG_FL, EMG_FH at the top.)
   const band = (name: string) => {
     const burn = FS / 2;
     const x = gaussArray(name, burn + n);
-    biquad(x, "hp", 20, FS);
-    biquad(x, "hp", 20, FS);
-    biquad(x, "lp", 450, FS);
-    biquad(x, "lp", 450, FS);
+    highPass(x, EMG_FL, FS);
+    lowPass(x, EMG_FH, FS);
+    lowPass(x, EMG_FH, FS);
     const y = x.slice(burn);
     let ss = 0;
     for (let i = PAD; i < n - PAD; i++) ss += y[i] * y[i];
@@ -399,6 +385,8 @@ function emgBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
 
 // ---- build and cache --------------------------------------------------------------------------
 
+// An SRB1 electrode connects to all 8 INnN pins (board switch), so it carries more input load
+// than a channel electrode. In every setup its coupling is about 3× a channel electrode's.
 function couplings(s: Setup): Map<string, number> {
   const c = new Map<string, number>();
   const scale = COUPLING[s.id];
@@ -407,7 +395,7 @@ function couplings(s: Setup): Map<string, number> {
     let u: number;
     if (s.id === "eeg") u = e.pin === "SRB1" ? 1 : g.range(-0.35, 0.35);
     else if (s.id === "eog") u = e.pin === "SRB1" ? 0.6 : g.range(-0.2, 0.2);
-    else u = e.pin === "IN1P" ? g.range(0.4, 0.6) : g.range(-0.6, -0.4);
+    else u = e.pin === "SRB1" ? 1.5 : g.range(0.4, 0.6);
     c.set(e.id, u * scale);
   }
   return c;

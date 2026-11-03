@@ -2,14 +2,18 @@ import { STOCK, withRegs } from "./registers";
 import type { Setup } from "./types";
 
 // The three hardware setups. Each one: electrodes on a body, wired to ADS1299 pins on a
-// Cerelog X8, with the board switch set to SRB1 or bipolar. The target is the firmware
-// that gives the target output. Every puzzle starts from STOCK (Cerelog stock V2).
+// Cerelog X8. All three use the board switch at SRB1 (the Cerelog default): one reference
+// electrode for every channel, plus one bias electrode. The target is the firmware that gives
+// the target output. Every puzzle starts from STOCK (Cerelog stock V2).
 //
 // Drawing coordinates (x, y) are 0–1 inside each body drawing:
 // - head: top view, nose up; the subject's left is on the left (10–20 system drawings).
 // - face: front view; the subject's left eye is on the right of the drawing.
 // - arm: right forearm, palm up; elbow on the left, hand on the right. 3 gel pads, all on the
 //   forearm (John, 2026-11-02): near the wrist, just below the elbow crease, and on the muscle.
+//   Wiring (John, 2026-11-03): 1 channel + reference + bias. Only the muscle pad is on the
+//   muscle belly, so the elbow pad is a reference (SRB1), not the second pad of a bipolar pair
+//   (a bipolar pair has both pads on the belly, ~20 mm apart). The wrist pad is ground (bias).
 
 // Tab order (John, 2026-11-03): EMG, EOG, EEG.
 export const SETUPS: Setup[] = [
@@ -18,10 +22,10 @@ export const SETUPS: Setup[] = [
     name: "EMG",
     detail: "3 electrodes on the arm",
     body: "arm",
-    montage: "bipolar",
+    montage: "srb1",
     electrodes: [
       { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.38, y: 0.42 },
-      { id: "elbow", label: "Forearm below the elbow crease · gel pad", pin: "IN1N", x: 0.17, y: 0.5 },
+      { id: "elbow", label: "Below the elbow crease · gel pad · reference", pin: "SRB1", x: 0.17, y: 0.5 },
       { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
     ],
     duration: 10,
