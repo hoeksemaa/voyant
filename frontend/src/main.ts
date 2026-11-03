@@ -1,4 +1,4 @@
-import { STOCK, byName } from "./puzzle/registers";
+import { STOCK } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
 import type { Bank, RegisterDef, Setup, SetupId } from "./puzzle/types";
 import { Board } from "./ui/board";
@@ -33,7 +33,7 @@ const editor = new FirmwareEditor(document.getElementById("firmware")!, {
     save(state);
     schedule();
   },
-  onSelect: (reg: RegisterDef) => datasheet.show(reg.group ?? "map"),
+  onSelect: (reg: RegisterDef) => datasheet.show(reg.name),
   onReset: () => {
     state.setups[setup.id].bank = STOCK.slice();
     save(state);
@@ -47,11 +47,7 @@ document.querySelector<HTMLAnchorElement>(".datasheet-link")!.href = PDF_URL;
 // A flag or a row tag points at a register: show it in the editor and in the datasheet.
 function focusReg(name: string): void {
   editor.focus(name);
-  try {
-    datasheet.show(byName(name).group ?? "map");
-  } catch {
-    datasheet.show("map");
-  }
+  datasheet.show(name);
 }
 
 // Setup tabs.
