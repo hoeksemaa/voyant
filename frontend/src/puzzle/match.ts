@@ -46,7 +46,11 @@ export function matchChannel(a: ChannelOut, t: ChannelOut): ChannelMatch {
   return { ch: t.ch, score, pass: err <= PASS_ERR };
 }
 
-export function match(actual: SimResult, target: SimResult): MatchResult {
+/**
+ * Match all 8 channels. Only the channels in `used` count for the pass (default: all 8).
+ * The puzzle passes usedChannels(setup): the channels with an electrode.
+ */
+export function match(actual: SimResult, target: SimResult, used: number[] = [1, 2, 3, 4, 5, 6, 7, 8]): MatchResult {
   const channels = target.out.map((t, i) => matchChannel(actual.out[i], t));
-  return { channels, pass: channels.every((c) => c.pass) };
+  return { channels, used, pass: channels.every((c) => c.pass || !used.includes(c.ch)) };
 }

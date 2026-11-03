@@ -11,34 +11,39 @@ import type { Setup } from "./types";
 // - arm: right forearm, palm up; elbow on the left, hand on the right. 3 gel pads, all on the
 //   forearm (John, 2026-11-02): near the wrist, just below the elbow crease, and on the muscle.
 
+// Tab order (John, 2026-11-03): EMG, EOG, EEG.
 export const SETUPS: Setup[] = [
   {
-    id: "eeg",
-    name: "EEG",
-    detail: "8 electrodes on the scalp",
-    body: "head",
-    montage: "srb1",
+    id: "emg",
+    name: "EMG",
+    detail: "3 electrodes on the arm",
+    body: "arm",
+    montage: "bipolar",
     electrodes: [
-      { id: "Fp1", label: "Fp1 · left forehead", pin: "IN1P", x: 0.4, y: 0.14 },
-      { id: "Fp2", label: "Fp2 · right forehead", pin: "IN2P", x: 0.6, y: 0.14 },
-      { id: "C3", label: "C3 · left center", pin: "IN3P", x: 0.3, y: 0.5 },
-      { id: "C4", label: "C4 · right center", pin: "IN4P", x: 0.7, y: 0.5 },
-      { id: "P3", label: "P3 · left back", pin: "IN5P", x: 0.34, y: 0.72 },
-      { id: "P4", label: "P4 · right back", pin: "IN6P", x: 0.66, y: 0.72 },
-      { id: "O1", label: "O1 · left occipital", pin: "IN7P", x: 0.42, y: 0.88 },
-      { id: "O2", label: "O2 · right occipital", pin: "IN8P", x: 0.58, y: 0.88 },
-      { id: "A1", label: "Left earlobe · reference", pin: "SRB1", x: 0.03, y: 0.5 },
-      { id: "A2", label: "Right earlobe · bias", pin: "BIASOUT", x: 0.97, y: 0.5 },
+      { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.38, y: 0.42 },
+      { id: "elbow", label: "Forearm below the elbow crease · gel pad", pin: "IN1N", x: 0.17, y: 0.5 },
+      { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
     ],
     duration: 10,
     phases: [
-      { t0: 0, t1: 3, label: "Eyes open" },
-      { t0: 3, t1: 7, label: "Eyes closed" },
-      { t0: 7, t1: 10, label: "Eyes open" },
+      { t0: 0, t1: 2, label: "Rest" },
+      { t0: 2, t1: 4.5, label: "Flex" },
+      { t0: 4.5, t1: 6.5, label: "Rest" },
+      { t0: 6.5, t1: 9, label: "Hard flex" },
+      { t0: 9, t1: 10, label: "Rest" },
     ],
-    // Fix: put all 8 scalp electrodes in the bias loop.
-    target: withRegs(STOCK, { BIAS_SENSP: 0xff }),
-    spec: "250 SPS · ±187.5 mV",
+    // Fix: 250 SPS cuts most of the EMG band; 2 kSPS keeps it. CH2–8 have no electrodes.
+    target: withRegs(STOCK, {
+      CONFIG1: 0xb3,
+      CH2SET: 0x81,
+      CH3SET: 0x81,
+      CH4SET: 0x81,
+      CH5SET: 0x81,
+      CH6SET: 0x81,
+      CH7SET: 0x81,
+      CH8SET: 0x81,
+    }),
+    spec: "2,000 SPS · ±187.5 mV",
   },
   {
     id: "eog",
@@ -75,35 +80,41 @@ export const SETUPS: Setup[] = [
     spec: "250 SPS · ±375 mV",
   },
   {
-    id: "emg",
-    name: "EMG",
-    detail: "3 electrodes on the arm",
-    body: "arm",
-    montage: "bipolar",
+    id: "eeg",
+    name: "EEG",
+    detail: "8 electrodes on the scalp",
+    body: "head",
+    montage: "srb1",
     electrodes: [
-      { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.38, y: 0.42 },
-      { id: "elbow", label: "Forearm below the elbow crease · gel pad", pin: "IN1N", x: 0.17, y: 0.5 },
-      { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
+      { id: "Fp1", label: "Fp1 · left forehead", pin: "IN1P", x: 0.4, y: 0.14 },
+      { id: "Fp2", label: "Fp2 · right forehead", pin: "IN2P", x: 0.6, y: 0.14 },
+      { id: "C3", label: "C3 · left center", pin: "IN3P", x: 0.3, y: 0.5 },
+      { id: "C4", label: "C4 · right center", pin: "IN4P", x: 0.7, y: 0.5 },
+      { id: "P3", label: "P3 · left back", pin: "IN5P", x: 0.34, y: 0.72 },
+      { id: "P4", label: "P4 · right back", pin: "IN6P", x: 0.66, y: 0.72 },
+      { id: "O1", label: "O1 · left occipital", pin: "IN7P", x: 0.42, y: 0.88 },
+      { id: "O2", label: "O2 · right occipital", pin: "IN8P", x: 0.58, y: 0.88 },
+      { id: "A1", label: "Left earlobe · reference", pin: "SRB1", x: 0.03, y: 0.5 },
+      { id: "A2", label: "Right earlobe · bias", pin: "BIASOUT", x: 0.97, y: 0.5 },
     ],
     duration: 10,
     phases: [
-      { t0: 0, t1: 2, label: "Rest" },
-      { t0: 2, t1: 4.5, label: "Flex" },
-      { t0: 4.5, t1: 6.5, label: "Rest" },
-      { t0: 6.5, t1: 9, label: "Hard flex" },
-      { t0: 9, t1: 10, label: "Rest" },
+      { t0: 0, t1: 3, label: "Eyes open" },
+      { t0: 3, t1: 7, label: "Eyes closed" },
+      { t0: 7, t1: 10, label: "Eyes open" },
     ],
-    // Fix: 250 SPS cuts most of the EMG band; 2 kSPS keeps it. CH2–8 have no electrodes.
-    target: withRegs(STOCK, {
-      CONFIG1: 0xb3,
-      CH2SET: 0x81,
-      CH3SET: 0x81,
-      CH4SET: 0x81,
-      CH5SET: 0x81,
-      CH6SET: 0x81,
-      CH7SET: 0x81,
-      CH8SET: 0x81,
-    }),
-    spec: "2,000 SPS · ±187.5 mV",
+    // Fix: put all 8 scalp electrodes in the bias loop.
+    target: withRegs(STOCK, { BIAS_SENSP: 0xff }),
+    spec: "250 SPS · ±187.5 mV",
   },
 ];
+
+/**
+ * The channels that the puzzle shows and checks: each channel with an electrode on its INnP pin.
+ * A channel with no electrode is not drawn and does not count in the match.
+ */
+export function usedChannels(setup: Setup): number[] {
+  const used: number[] = [];
+  for (let n = 1; n <= 8; n++) if (setup.electrodes.some((e) => e.pin === `IN${n}P`)) used.push(n);
+  return used;
+}

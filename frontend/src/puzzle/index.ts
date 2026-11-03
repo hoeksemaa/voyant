@@ -4,7 +4,7 @@ import type { Setup, SimResult } from "./types";
 import { simulate } from "./model";
 
 export * from "./types";
-export { SETUPS } from "./setups";
+export { SETUPS, usedChannels } from "./setups";
 export { REGISTERS, STOCK, byName, field, withRegs, rejectReason, VREF, GAINS, RATES } from "./registers";
 export { simulate } from "./model";
 export { match, PASS_ERR, FLOOR_UV } from "./match";

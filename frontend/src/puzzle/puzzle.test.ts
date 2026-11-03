@@ -1,13 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { GAINS, RATES, SETUPS, STOCK, VREF, match, simulate, targetFor, withRegs } from "./index";
+import { GAINS, RATES, SETUPS, STOCK, VREF, match, simulate, targetFor, usedChannels, withRegs } from "./index";
 import type { Bank, MatchResult, Setup, SimResult } from "./index";
 import { modelOptions } from "./model";
 import { NOISE_UVRMS } from "./noise";
 
-const [EEG, EOG, EMG] = SETUPS;
+const byId = (id: string): Setup => SETUPS.find((s) => s.id === id)!;
+const EEG = byId("eeg");
+const EOG = byId("eog");
+const EMG = byId("emg");
 const ALL = [1, 2, 3, 4, 5, 6, 7, 8];
 
-const run = (s: Setup, bank: Bank): MatchResult => match(simulate(s, bank), targetFor(s));
+const run = (s: Setup, bank: Bank): MatchResult => match(simulate(s, bank), targetFor(s), usedChannels(s));
 const passing = (m: MatchResult) => m.channels.filter((c) => c.pass).map((c) => c.ch);
 const failing = (m: MatchResult) => m.channels.filter((c) => !c.pass).map((c) => c.ch);
 /** The same CHnSET value on many channels. */
@@ -66,6 +69,23 @@ describe("puzzle properties", () => {
     expect(passing(m)).toEqual([2, 3, 4, 5, 6, 7, 8]);
     m = run(EMG, withRegs(STOCK, { CONFIG1: 0xb3 }));
     expect(passing(m)).toEqual([1]);
+  });
+
+  test("4b. only the channels with an electrode count: one register solves each setup", () => {
+    expect(SETUPS.map((s) => s.id)).toEqual(["emg", "eog", "eeg"]);
+    expect(usedChannels(EMG)).toEqual([1]);
+    expect(usedChannels(EOG)).toEqual([1, 2]);
+    expect(usedChannels(EEG)).toEqual(ALL);
+    // EMG: the data rate alone. CH2–8 still float, but they do not count.
+    expect(run(EMG, withRegs(STOCK, { CONFIG1: 0xb3 })).pass).toBe(true);
+    expect(run(EMG, withRegs(STOCK, chs(0x81, [2, 3, 4, 5, 6, 7, 8]))).pass).toBe(false);
+    // EOG: the gain alone. CH3–8 still float, but they do not count.
+    expect(run(EOG, withRegs(STOCK, chs(0x50, [1, 2]))).pass).toBe(true);
+    expect(run(EOG, withRegs(STOCK, chs(0x81, [3, 4, 5, 6, 7, 8]))).pass).toBe(false);
+    // EEG: the bias mask alone.
+    expect(run(EEG, withRegs(STOCK, { BIAS_SENSP: 0xff })).pass).toBe(true);
+    // A floating input in the bias mask still breaks the used channels.
+    expect(run(EOG, withRegs(STOCK, { ...chs(0x50, [1, 2]), BIAS_SENSP: 0xff })).pass).toBe(false);
   });
 
   test("5. other right answers pass", () => {

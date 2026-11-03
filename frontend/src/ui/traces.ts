@@ -260,11 +260,3 @@ function drawEdges(s: Screen, off: Uint8Array): void {
     }
   }
 }
-
-/** No electrode: a dotted line at mid-height. */
-export function drawOpen(s: Screen): void {
-  const { ctx, w, h, dpr } = s;
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
-  const y = Math.round(h / 2);
-  for (let x = 0; x < w; x += 6 * dpr) ctx.fillRect(x, y, 2 * dpr, dpr);
-}

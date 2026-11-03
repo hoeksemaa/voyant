@@ -113,8 +113,9 @@ export interface ChannelMatch {
 }
 
 export interface MatchResult {
-  channels: ChannelMatch[]; // 8
-  pass: boolean; // true when all 8 channels pass
+  channels: ChannelMatch[]; // 8, in channel order
+  used: number[]; // the channels that count (see usedChannels in setups.ts)
+  pass: boolean; // true when every used channel passes
 }
 
 /** One image cut from the datasheet. */

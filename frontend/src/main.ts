@@ -6,7 +6,7 @@ import { Book } from "./ui/book";
 import { Cards } from "./ui/cards";
 import type { Box, ChipStage } from "./ui/chip-stage";
 import { DatasheetViewer, FirmwareEditor } from "./ui/dock-api";
-import { CLIPS, PDF_URL, match, simulate, targetFor } from "./ui/sim-api";
+import { CLIPS, PDF_URL, match, simulate, targetFor, usedChannels } from "./ui/sim-api";
 import { load, save } from "./ui/state";
 import "./style.css";
 
@@ -106,7 +106,7 @@ function schedule(): void {
 function run(): void {
   clearTimeout(timer);
   const sim = simulate(setup, bank());
-  const m = match(sim, targetFor(setup));
+  const m = match(sim, targetFor(setup), usedChannels(setup));
   board.setResult(sim, m, bank());
   cards.setResult(sim, m, bank());
   paintMini(m);
@@ -142,10 +142,11 @@ new IntersectionObserver(
 ).observe(cardsEl);
 
 function paintMini(m: MatchResult): void {
-  const dots = m.channels.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
-  const passed = m.channels.filter((c) => c.pass).length;
+  const used = m.channels.filter((c) => m.used.includes(c.ch));
+  const dots = used.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
+  const passed = used.filter((c) => c.pass).length;
   mini.classList.toggle("good", m.pass);
-  mini.innerHTML = `<span class="mini-dots">${dots}</span><span>${m.pass ? "Solved" : `${passed} / 8 match`}</span><span class="mini-up">↑</span>`;
+  mini.innerHTML = `<span class="mini-dots">${dots}</span><span>${m.pass ? "Solved" : `${passed} / ${used.length} match`}</span><span class="mini-up">↑</span>`;
   mini.hidden = cardsInView;
 }
 

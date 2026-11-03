@@ -401,7 +401,10 @@ a { color: inherit; }
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(0, 0, 0, 0.08);
   color: rgba(255, 255, 255, 0.75);
 }
-.col-in .scope { flex: 1; }
+.col-in .scope { flex: 0 1 auto; }
+/* Few channels (EMG 1, EOG 2): rows keep a normal height and the card ends under them.
+   Many channels (EEG 8): rows shrink to fit the column. */
+.scope-out, .scope-target { align-self: start; max-height: 100%; }
 .scope-target { background: var(--scope-quiet); }
 
 .srow { display: grid; column-gap: 6px; }
@@ -411,9 +414,10 @@ a { color: inherit; }
 .srow.strip { height: 18px; margin-bottom: 3px; }
 .srow.axis { height: 18px; }
 
-.rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rows { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .srow.ch {
-  flex-basis: 0;
+  flex: 1 1 124px;
+  max-height: 124px;
   min-height: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   transition: background 0.15s ease-out;

@@ -1,13 +1,14 @@
 import type { Bank, MatchResult, Setup, SimResult } from "../puzzle/types";
 import { drawing } from "./drawing";
 import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
-import { drawGrid, drawOpen, drawTrace, rangeOf, screen, type Range } from "./traces";
+import { drawGrid, drawTrace, rangeOf, screen, type Range } from "./traces";
 import { CH_COLORS, TARGET_COLOR, channelTag, wires } from "./wiring";
 
-// The phone view: the body drawing, then one card per channel. Each card shows the target
-// in grey with the output on top, in the channel's color.
+// The phone view: the body drawing, then one card per channel with an electrode. Each card
+// shows the target in grey with the output on top, in the channel's color.
 
 interface CardView {
+  ch: number; // 1–8
   el: HTMLElement;
   canvas: HTMLCanvasElement;
   tag: HTMLButtonElement;
@@ -63,11 +64,11 @@ export class Cards {
     spec.append(outRow, tgtRow);
     this.top.replaceChildren(d.el, sw);
 
-    this.cards = wires(setup).map((w) => {
+    this.cards = wires(setup).filter((w) => w.p).map((w) => {
       const el = document.createElement("article");
-      el.className = w.p ? "card" : "card empty";
+      el.className = "card";
       el.style.setProperty("--c", CH_COLORS[w.ch - 1]);
-      const label = w.p ? `${w.pLabel} − ${w.nLabel}` : "open";
+      const label = `${w.pLabel} − ${w.nLabel}`;
       el.innerHTML = `<header><b><i></i>CH${w.ch}</b><span class="card-wire">${label}</span></header>`;
       const tag = document.createElement("button");
       tag.type = "button";
@@ -78,7 +79,7 @@ export class Cards {
       el.querySelector("header")!.append(tag, p);
       const canvas = document.createElement("canvas");
       el.append(canvas);
-      return { el, canvas, tag, pip: p };
+      return { ch: w.ch, el, canvas, tag, pip: p };
     });
     this.list.replaceChildren(head, spec, phaseStrip(setup), ...this.cards.map((c) => c.el), timeAxis(setup.duration));
     this.schedule();
@@ -86,12 +87,14 @@ export class Cards {
 
   setResult(sim: SimResult, m: MatchResult, bank: Bank): void {
     this.sim = sim;
-    const passed = m.channels.filter((c) => c.pass).length;
-    this.score.textContent = `${passed} / 8 match`;
+    const passed = m.channels.filter((c) => c.pass && m.used.includes(c.ch)).length;
+    this.score.textContent = `${passed} / ${m.used.length} match`;
     this.score.classList.toggle("good", m.pass);
     outSpec(this.outLine, sim, this.target!);
-    renderBanner(this.banner, sim.flags, m.pass, this.onFocus);
-    this.cards.forEach((c, k) => {
+    const flags = sim.flags.filter((f) => !f.ch || m.used.includes(f.ch)); // no flags for hidden channels
+    renderBanner(this.banner, flags, m.pass, this.onFocus);
+    this.cards.forEach((c) => {
+      const k = c.ch - 1;
       const ch = m.channels[k];
       setPip(c.pip, ch);
       const tag = channelTag(this.setup!, bank, sim.out[k], ch.pass);
@@ -121,7 +124,8 @@ export class Cards {
     const target = this.target;
     if (!setup || !target || !this.root.offsetParent) return;
     fitPhases(this.root);
-    this.cards.forEach((c, k) => {
+    this.cards.forEach((c) => {
+      const k = c.ch - 1;
       const s = screen(c.canvas);
       if (!s) return;
       const r = this.ranges[k];
@@ -129,7 +133,6 @@ export class Cards {
       drawTrace(s, target.out[k].uv, r, { color: TARGET_COLOR, alpha: 0.75 });
       const out = this.sim?.out[k];
       if (out) drawTrace(s, out.uv, r, { color: CH_COLORS[k], glow: true, edges: true });
-      else if (!target.analog[k].uv) drawOpen(s);
     });
   }
 }

@@ -3,12 +3,13 @@ import type { Link } from "../curves";
 import { drawing, type Drawing } from "./drawing";
 import { LENS_SPAN, Lens, type LensTrace } from "./lens";
 import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
-import { drawGrid, drawOpen, drawTrace, rangeOf, rangeText, screen, type Range } from "./traces";
+import { drawGrid, drawTrace, rangeOf, rangeText, screen, type Range } from "./traces";
 import { BIAS_COLOR, CH_COLORS, DOUT_COLOR, REF_COLOR, TARGET_COLOR, channelTag, pinNo, wires, type Wire } from "./wiring";
 
 // The desktop board: Analog in | (3D chip) | Output | Target.
 // Output and Target rows of a channel share one y-scale: the target's range. The analog rows
 // scale to their own signal, because the analog voltage never clips.
+// Only the channels with an electrode get rows (usedChannels); the others do not count.
 
 export interface BoardEvents {
   onFocus: (reg: string) => void; // show a register in the firmware editor
@@ -19,6 +20,7 @@ export interface BoardEvents {
 type Kind = "in" | "out" | "target";
 
 interface RowView {
+  ch: number; // 1–8
   el: HTMLElement;
   screen: HTMLElement;
   canvas: HTMLCanvasElement;
@@ -105,7 +107,7 @@ export class Board {
     this.target = target;
     this.sim = null;
     this.lens.hide();
-    this.wires = wires(setup);
+    this.wires = wires(setup).filter((w) => w.p); // channels with an electrode only
     this.aRange = target.analog.map((a) => rangeOf(a.uv));
     this.tRange = target.out.map((o) => rangeOf(o.uv, o.status === "off"));
 
@@ -122,7 +124,8 @@ export class Board {
     this.analog = this.buildScope(this.scopeIn, "in");
     this.out = this.buildScope(this.scopeOut, "out");
     this.tgt = this.buildScope(this.scopeTarget, "target");
-    this.tgt.forEach((r, k) => {
+    this.tgt.forEach((r) => {
+      const k = r.ch - 1;
       r.scale!.textContent = rangeText(this.tRange[k]);
       const off = target.out[k].status === "off";
       r.tag!.textContent = off ? "off" : "";
@@ -147,7 +150,7 @@ export class Board {
       const mark = document.createElement("span");
       mark.className = "lens-mark";
       screenEl.append(canvas, mark);
-      const view: RowView = { el, screen: screenEl, canvas, mark };
+      const view: RowView = { ch: w.ch, el, screen: screenEl, canvas, mark };
       if (kind === "in") {
         const gut = document.createElement("div");
         gut.className = "gut";
@@ -239,16 +242,19 @@ export class Board {
     const setup = this.setup!;
     const target = this.target!;
     this.sim = sim;
-    const passed = m.channels.filter((c) => c.pass).length;
-    this.score.textContent = `${passed} / 8 match`;
+    const passed = m.channels.filter((c) => c.pass && m.used.includes(c.ch)).length;
+    this.score.textContent = `${passed} / ${m.used.length} match`;
     this.score.classList.toggle("good", m.pass);
     outSpec(this.heads.out.note, sim, target);
-    renderBanner(this.flags, sim.flags, m.pass, this.ev.onFocus);
+    // Flags on a channel with no electrode stay hidden: that channel is not shown and does not count.
+    const flags = sim.flags.filter((f) => !f.ch || m.used.includes(f.ch));
+    renderBanner(this.flags, flags, m.pass, this.ev.onFocus);
     this.aRange = sim.analog.map((a) => rangeOf(a.uv));
-    this.analog.forEach((r, k) => {
-      r.scale!.textContent = this.wires[k].p ? rangeText(this.aRange[k]) : "";
+    this.analog.forEach((r) => {
+      r.scale!.textContent = rangeText(this.aRange[r.ch - 1]);
     });
-    this.out.forEach((r, k) => {
+    this.out.forEach((r) => {
+      const k = r.ch - 1;
       const c = m.channels[k];
       setPip(r.pip!, c);
       r.el.classList.toggle("pass", c.pass);
@@ -279,7 +285,7 @@ export class Board {
     const bipolar = setup.montage === "bipolar";
     for (const w of this.wires) {
       if (!w.p) continue;
-      const el = this.analog[w.ch - 1].el;
+      const el = this.analog.find((r) => r.ch === w.ch)!.el;
       const color = CH_COLORS[w.ch - 1];
       links.push({ el, side: "in", pin: pinNo(`IN${w.ch}P`), color, key: w.ch, spread: bipolar && w.n ? -3 : 0 });
       if (bipolar && w.n) links.push({ el, side: "in", pin: pinNo(`IN${w.ch}N`), color, key: w.ch, spread: 3 });
@@ -317,21 +323,23 @@ export class Board {
     fitPhases(this.root);
     const { duration, phases } = setup;
     const sim = this.sim ?? target;
-    this.analog.forEach((r, k) => {
+    this.analog.forEach((r) => {
+      const k = r.ch - 1;
       const s = screen(r.canvas);
       if (!s) return;
       const a = sim.analog[k];
       drawGrid(s, duration, phases, a.uv ? this.aRange[k] : null);
       if (a.uv) drawTrace(s, a.uv, this.aRange[k], { color: CH_COLORS[k], glow: true });
-      else drawOpen(s);
     });
-    if (full) this.tgt.forEach((r, k) => {
+    if (full) this.tgt.forEach((r) => {
+      const k = r.ch - 1;
       const s = screen(r.canvas);
       if (!s) return;
       drawGrid(s, duration, phases, this.tRange[k]);
       drawTrace(s, target.out[k].uv, this.tRange[k], { color: TARGET_COLOR, alpha: 0.9 });
     });
-    this.out.forEach((r, k) => {
+    this.out.forEach((r) => {
+      const k = r.ch - 1;
       const s = screen(r.canvas);
       if (!s) return;
       drawGrid(s, duration, phases, this.tRange[k]);

@@ -23,7 +23,7 @@ const isId = (id: unknown): id is SetupId => SETUPS.some((s) => s.id === id);
 
 export function load(): State {
   const state: State = {
-    current: "eeg",
+    current: SETUPS[0].id, // the first tab
     setups: { eeg: fresh(), eog: fresh(), emg: fresh() },
   };
   try {
