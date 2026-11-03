@@ -1,6 +1,6 @@
 import { STOCK } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
-import type { Bank, RegisterDef, Setup, SetupId } from "./puzzle/types";
+import type { Bank, MatchResult, RegisterDef, Setup, SetupId } from "./puzzle/types";
 import { Board } from "./ui/board";
 import { Cards } from "./ui/cards";
 import type { Box, ChipStage } from "./ui/chip-stage";
@@ -101,6 +101,7 @@ function run(): void {
   const m = match(sim, targetFor(setup));
   board.setResult(sim, m, bank());
   cards.setResult(sim, m, bank());
+  paintMini(m);
   const s = state.setups[setup.id];
   if (m.pass && !s.solved) {
     s.solved = true;
@@ -110,6 +111,34 @@ function run(): void {
     tab.classList.add("just-solved");
     setTimeout(() => tab.classList.remove("just-solved"), 900);
   }
+}
+
+// Phone: the output cards are far above the firmware. While they are out of view, a small
+// pill at the bottom shows the match (one dot per channel). A tap on it scrolls up to the cards.
+const cardsEl = document.getElementById("cards")!;
+const mini = document.createElement("button");
+mini.type = "button";
+mini.className = "mini-score";
+mini.hidden = true;
+mini.setAttribute("aria-label", "Go to the output");
+mini.addEventListener("click", () => cardsEl.scrollIntoView({ behavior: "smooth", block: "start" }));
+document.body.append(mini);
+let cardsInView = true;
+// "In view": the cards reach into the band under the sticky tabs, down to 60% of the screen height.
+new IntersectionObserver(
+  ([e]) => {
+    cardsInView = e.isIntersecting;
+    mini.hidden = cardsInView;
+  },
+  { rootMargin: "-80px 0px -40% 0px" },
+).observe(cardsEl);
+
+function paintMini(m: MatchResult): void {
+  const dots = m.channels.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
+  const passed = m.channels.filter((c) => c.pass).length;
+  mini.classList.toggle("good", m.pass);
+  mini.innerHTML = `<span class="mini-dots">${dots}</span><span>${m.pass ? "Solved" : `${passed} / 8 match`}</span><span class="mini-up">↑</span>`;
+  mini.hidden = cardsInView;
 }
 
 // The 3D chip: desktop only. Phones never load three.js or make a WebGL context.

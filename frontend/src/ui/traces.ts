@@ -112,11 +112,13 @@ export interface TraceStyle {
   color: string; // "#rrggbb"
   glow?: boolean; // a soft halo (output and analog); none on the quiet target
   alpha?: number;
+  edges?: boolean; // mark the columns where the trace goes past the top or bottom of the row
 }
 
 /**
  * One trace over the full width. Values past the range stop at the row edge, so a trace
- * that leaves the range shows as a bright line on that edge.
+ * that leaves the range shows as a bright line on that edge. With style.edges, a red fade
+ * also marks that edge.
  */
 export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceStyle): void {
   const { ctx, w, h, dpr } = s;
@@ -124,19 +126,32 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
   if (!n) return;
   const lo = 1;
   const hi = h - 2;
+  const per = n / w; // samples per column
+  // off[x]: 1 = a sample in column x is well above the row, 2 = well below it.
+  // "Well": past the edge by more than OFF_MARGIN of the row height, so a near miss gets no mark.
+  const off = style.edges ? new Uint8Array(w) : null;
+  const far = OFF_MARGIN * h;
+  let i = 0;
   const y = (v: number) => {
     const p = yOf(s, r, v);
-    return p < lo ? lo : p > hi ? hi : p;
+    if (p < lo) {
+      if (off && p < lo - far) off[Math.min(w - 1, Math.floor(i / per))] |= 1;
+      return lo;
+    }
+    if (p > hi) {
+      if (off && p > hi + far) off[Math.min(w - 1, Math.floor(i / per))] |= 2;
+      return hi;
+    }
+    return p;
   };
 
   // Time density: each sample adds 1 to its column. A sample spreads its 1 over the pixels
   // between it and the last sample, so slopes stay joined. Large jumps between dense samples
   // (mains hum at a low data rate) stay as dots. If the code joins them, they fill the row.
   const dens = new Float32Array(w * h);
-  const per = n / w; // samples per column
   const jump = per < 4 ? Infinity : per < 24 ? h * 0.25 : 0;
   let py = y(uv[0]);
-  for (let i = 0; i < n; i++) {
+  for (i = 0; i < n; i++) {
     const x = Math.min(w - 1, Math.floor(i / per));
     const yy = y(uv[i]);
     if (Math.abs(yy - py) < jump) {
@@ -204,6 +219,8 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
   sctx.clearRect(0, 0, w, h);
   sctx.putImageData(img, 0, 0);
 
+  // The red edge goes under the trace, so the channel color stays on top.
+  if (off) drawEdges(s, off);
   const alpha = style.alpha ?? 1;
   if (style.glow && hasFilter) {
     ctx.filter = `blur(${2.5 * dpr}px)`;
@@ -214,6 +231,34 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
   ctx.globalAlpha = alpha;
   ctx.drawImage(scratch, 0, 0, w, h, 0, 0, w, h);
   ctx.globalAlpha = 1;
+}
+
+const OFF_RED = "217,45,74"; // status red (#D92D4A)
+const OFF_MARGIN = 0.25; // share of the row height
+
+/** A red fade at the top or bottom edge, over the columns where the trace is off the scale. */
+function drawEdges(s: Screen, off: Uint8Array): void {
+  const { ctx, w, h, dpr } = s;
+  const band = 11 * dpr;
+  for (const [bit, y0, y1] of [
+    [1, 0, band],
+    [2, h, h - band],
+  ] as const) {
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, `rgba(${OFF_RED},0.7)`);
+    g.addColorStop(1, `rgba(${OFF_RED},0)`);
+    ctx.fillStyle = g;
+    let x = 0;
+    while (x < w) {
+      if (!(off[x] & bit)) {
+        x++;
+        continue;
+      }
+      const a = x;
+      while (x < w && off[x] & bit) x++;
+      ctx.fillRect(a, Math.min(y0, y1), x - a, band);
+    }
+  }
 }
 
 /** No electrode: a dotted line at mid-height. */

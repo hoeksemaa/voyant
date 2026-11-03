@@ -128,7 +128,7 @@ export class Cards {
       drawGrid(s, setup.duration, setup.phases, r);
       drawTrace(s, target.out[k].uv, r, { color: TARGET_COLOR, alpha: 0.75 });
       const out = this.sim?.out[k];
-      if (out) drawTrace(s, out.uv, r, { color: CH_COLORS[k], glow: true });
+      if (out) drawTrace(s, out.uv, r, { color: CH_COLORS[k], glow: true, edges: true });
       else if (!target.analog[k].uv) drawOpen(s);
     });
   }

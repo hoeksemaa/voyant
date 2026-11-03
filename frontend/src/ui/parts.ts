@@ -17,18 +17,34 @@ export function phaseStrip(setup: Setup): HTMLElement {
   return strip;
 }
 
-/** Shorten phase labels that do not fit: "Eyes closed" → "Closed" → "C". */
+/** Shorten phase labels that do not fit: "Eyes closed" → "closed" → "C"; "Hard flex" → "Hard" → "H". */
 export function fitPhases(root: ParentNode): void {
   for (const seg of root.querySelectorAll<HTMLElement>(".phases span")) {
     const full = seg.dataset.label!;
-    const words = full.split(" ");
-    const tries = [full, words[words.length - 1], full[0]];
+    const key = keyWord(seg);
+    const tries = [full, key, key[0].toUpperCase()];
     for (const t of tries) {
       seg.textContent = t;
       if (seg.scrollWidth <= seg.clientWidth + 1) break;
     }
     if (seg.scrollWidth > seg.clientWidth + 1) seg.textContent = "";
   }
+}
+
+/** The word of a phase label that the fewest labels in its strip share: "Hard flex" → "Hard", "Eyes open" → "open". */
+function keyWord(seg: HTMLElement): string {
+  const labels = [...new Set([...seg.parentElement!.children].map((e) => (e as HTMLElement).dataset.label!.toLowerCase()))];
+  const words = seg.dataset.label!.split(" ");
+  let best = words[words.length - 1];
+  let bestN = Infinity;
+  for (const w of [...words].reverse()) {
+    const n = labels.filter((l) => l.split(" ").includes(w.toLowerCase())).length;
+    if (n < bestN) {
+      best = w;
+      bestN = n;
+    }
+  }
+  return best;
 }
 
 export function timeAxis(duration: number): HTMLElement {
@@ -107,8 +123,13 @@ export function renderBanner(el: HTMLElement, flags: Flag[], solved: boolean, on
     b.type = "button";
     b.className = `flag flag-${f.level}`;
     b.title = f.text;
-    b.innerHTML = `<i></i>${f.reg ? `<b>${f.reg}</b>` : ""}<span></span>`;
-    b.querySelector("span")!.textContent = f.reg ? f.text.replace(new RegExp(`^${f.reg}:\\s*`), "") : f.text;
+    b.innerHTML = `<i></i>${f.reg ? `<b>${f.reg}</b>` : ""}<span><span class="lead"></span><span class="rest"></span></span>`;
+    // The register name is in bold, so drop it from the start of the text.
+    const text = f.reg ? f.text.replace(new RegExp(`^${f.reg}:?\\s+`), "") : f.text;
+    // The first sentence is the fault. The rest explains it (full text on the phone and in the tooltip).
+    const cut = text.search(/\.\s/);
+    b.querySelector(".lead")!.textContent = cut > 0 ? text.slice(0, cut + 1) : text;
+    b.querySelector(".rest")!.textContent = cut > 0 ? text.slice(cut + 1) : "";
     if (f.reg) b.addEventListener("click", () => onFocus(f.reg!));
     else b.disabled = true;
     el.append(b);

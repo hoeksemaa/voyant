@@ -335,7 +335,7 @@ export class Board {
       const s = screen(r.canvas);
       if (!s) return;
       drawGrid(s, duration, phases, this.tRange[k]);
-      if (this.sim) drawTrace(s, this.sim.out[k].uv, this.tRange[k], { color: CH_COLORS[k], glow: true });
+      if (this.sim) drawTrace(s, this.sim.out[k].uv, this.tRange[k], { color: CH_COLORS[k], glow: true, edges: true });
     });
   }
 }

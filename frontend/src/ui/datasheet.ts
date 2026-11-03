@@ -97,6 +97,7 @@ export class DatasheetViewer {
     this.swipe();
     new ResizeObserver(() => {
       this.el.classList.toggle("compact", root.clientWidth > 0 && root.clientWidth < COMPACT_W);
+      this.revealTab(this.idx, false);
       this.edgeFade();
     }).observe(root);
 
@@ -190,13 +191,16 @@ export class DatasheetViewer {
       .catch(() => swap(next.complete && next.naturalWidth > 0));
   }
 
-  private revealTab(i: number): void {
+  /** Scroll the tab strip so that tab i is fully in view, clear of the edge fades. */
+  private revealTab(i: number, smooth = true): void {
     const t = this.tabBtns[i];
+    if (!t) return;
     const s = this.tabs;
     const l = t.offsetLeft;
     const r = l + t.offsetWidth;
-    if (l < s.scrollLeft + 16) s.scrollTo({ left: l - 24, behavior: "smooth" });
-    else if (r > s.scrollLeft + s.clientWidth - 16) s.scrollTo({ left: r - s.clientWidth + 24, behavior: "smooth" });
+    const behavior = smooth ? "smooth" : "instant";
+    if (l < s.scrollLeft + 32) s.scrollTo({ left: l - 32, behavior });
+    else if (r > s.scrollLeft + s.clientWidth - 32) s.scrollTo({ left: r - s.clientWidth + 32, behavior });
   }
 
   /** Fade the tab strip at an edge where more tabs are hidden. */
