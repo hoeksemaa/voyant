@@ -24,7 +24,7 @@ interface View {
 
 const deg = THREE.MathUtils.degToRad;
 const VIEWS = {
-  board: { polar: deg(40), height: 12.5, width: 14.5 },
+  board: { polar: deg(40), height: 25, width: 29 }, // the chip fills about half of the center column
   pins: { polar: deg(32), height: 18.5, width: 22 },
 };
 const AZIMUTH = deg(22); // start angle around the chip; a drag can change it
@@ -73,7 +73,7 @@ export class ChipStage {
     c.enableDamping = true;
     c.dampingFactor = 0.08;
     c.minDistance = 9;
-    c.maxDistance = 90;
+    c.maxDistance = 160;
     c.addEventListener("start", () => (this.move = null)); // a drag takes over
     c.addEventListener("change", () => this.requestRender());
 

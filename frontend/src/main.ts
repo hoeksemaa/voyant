@@ -2,6 +2,7 @@ import { STOCK } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
 import type { Bank, MatchResult, RegisterDef, Setup, SetupId } from "./puzzle/types";
 import { Board } from "./ui/board";
+import { Book } from "./ui/book";
 import { Cards } from "./ui/cards";
 import type { Box, ChipStage } from "./ui/chip-stage";
 import { DatasheetViewer, FirmwareEditor } from "./ui/dock-api";
@@ -42,9 +43,16 @@ const editor = new FirmwareEditor(document.getElementById("firmware")!, {
   },
 });
 const datasheet = new DatasheetViewer(document.getElementById("datasheet")!, CLIPS, PDF_URL);
-document.querySelector<HTMLAnchorElement>(".datasheet-link")!.href = PDF_URL;
+// The datasheet stays closed behind the book icon. It follows the selected register, so it
+// opens on the right clip.
+new Book(
+  document.querySelector<HTMLButtonElement>(".book-toggle")!,
+  document.getElementById("book")!,
+  document.getElementById("datasheet")!,
+  PDF_URL,
+);
 
-// A flag or a row tag points at a register: show it in the editor and in the datasheet.
+// A flag or a row tag points at a register: select it in the editor and in the datasheet.
 function focusReg(name: string): void {
   editor.focus(name);
   datasheet.show(name);

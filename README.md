@@ -8,7 +8,7 @@ Live: [voyant-sim.vercel.app](https://voyant-sim.vercel.app)
 
 1. Pick a hardware setup.
 2. Compare the chip's output with the target output.
-3. Edit the firmware registers until the two match. Use the datasheet clips for help.
+3. Edit the firmware registers until the two match. The book icon opens the datasheet.
 4. A green check marks a solved setup.
 
 Each setup starts from the real Cerelog stock V2 firmware. On a phone, the same puzzle shows as one column.
