@@ -55,7 +55,7 @@ a { color: inherit; }
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   padding: 0 20px;
 }
 
@@ -77,8 +77,8 @@ a { color: inherit; }
 .tab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 10px;
+  gap: 9px;
+  padding: 6px 12px 6px 9px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -89,7 +89,7 @@ a { color: inherit; }
 .tab:hover { background: rgba(0, 0, 0, 0.05); }
 .tab[aria-selected="true"] { background: var(--ink); color: #fff; }
 .tab-text b { display: block; font-size: 13px; font-weight: 600; line-height: 1.2; }
-.tab-text span { display: block; font-size: 11.5px; line-height: 1.3; color: var(--muted); white-space: nowrap; }
+.tab-text span { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; }
 .tab[aria-selected="true"] .tab-text span { color: rgba(255, 255, 255, 0.62); }
 
 .check {
@@ -116,7 +116,11 @@ a { color: inherit; }
 .tab.just-solved .check { animation: pop 0.5s ease-out; }
 @keyframes pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
 
-.links { flex: none; display: flex; align-items: center; gap: 16px; font-size: 13px; font-weight: 500; }
+.links { flex: none; display: flex; align-items: center; gap: 14px; font-size: 13px; font-weight: 500; }
+/* Narrow desktop: the tabs show only the setup name, so the top bar fits on one line. */
+@media (min-width: 1100px) and (max-width: 1279px) {
+  .tab-text span { display: none; }
+}
 .links a { color: var(--muted); text-decoration: none; white-space: nowrap; }
 .links a:hover { color: var(--ink); }
 .links .credit { font-size: 12px; font-weight: 400; color: var(--faint); }
@@ -168,7 +172,7 @@ a { color: inherit; }
 }
 .col-head h2 {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -280,7 +284,7 @@ a { color: inherit; }
 .el b {
   position: absolute;
   top: -8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 16px;
   white-space: nowrap;
@@ -290,6 +294,7 @@ a { color: inherit; }
 .el-left b { right: 10px; }
 .el-right b { left: 10px; }
 .el-below b { top: 9px; left: 0; transform: translateX(-50%); }
+.el-above b { top: -24px; left: 0; transform: translateX(-50%); }
 .el.hot i { transform: scale(1.4); }
 .el-bias.hot i { transform: rotate(45deg) scale(1.3); }
 
@@ -308,7 +313,7 @@ a { color: inherit; }
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -347,7 +352,7 @@ a { color: inherit; }
 .srow.ch:first-child { border-top: 0; }
 .srow.ch.hot { background: rgba(255, 255, 255, 0.045); }
 
-.screen { position: relative; min-width: 0; }
+.screen { position: relative; min-width: 0; container-type: size; }
 .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 .gut {
@@ -357,7 +362,7 @@ a { color: inherit; }
   gap: 1px;
   min-width: 0;
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -375,13 +380,18 @@ a { color: inherit; }
   left: 3px;
   padding: 0 3px;
   border-radius: 3px;
-  background: rgba(16, 18, 21, 0.72);
-  font-size: 9.5px;
-  line-height: 12px;
-  color: rgba(255, 255, 255, 0.36);
+  background: rgba(16, 18, 21, 0.85);
+  font-size: 12px;
+  line-height: 13px;
+  color: rgba(255, 255, 255, 0.5);
   pointer-events: none;
 }
 .srow.empty .scale { display: none; }
+/* A short row has no room for the scale over the trace: it shows while the pointer is on the row. */
+@container (max-height: 46px) {
+  .scale { opacity: 0; transition: opacity 0.12s; }
+}
+.srow:hover .scale { opacity: 1; }
 
 .tag {
   position: absolute;
@@ -393,7 +403,7 @@ a { color: inherit; }
   border-radius: 4px;
   background: #2c3036;
   color: rgba(255, 255, 255, 0.8);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 13px;
   cursor: pointer;
@@ -425,7 +435,7 @@ a { color: inherit; }
   overflow: hidden;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 18px;
   text-align: center;
@@ -437,7 +447,7 @@ a { color: inherit; }
 .ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 18px;
   color: rgba(255, 255, 255, 0.4);
 }
@@ -465,7 +475,7 @@ a { color: inherit; }
   pointer-events: none;
 }
 .lens[hidden] { display: none; }
-.lens-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; line-height: 16px; color: rgba(255, 255, 255, 0.85); }
+.lens-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 16px; color: rgba(255, 255, 255, 0.85); }
 .lens-head span + span { color: rgba(255, 255, 255, 0.45); }
 .lens canvas { display: block; width: 100%; height: 84px; margin-top: 4px; }
 

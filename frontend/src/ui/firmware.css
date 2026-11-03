@@ -39,7 +39,7 @@
   border-bottom: 1px solid var(--fw-rule);
 }
 .fw-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -198,7 +198,7 @@
   border-radius: 5px;
   background: #fff;
   color: var(--fw-ink);
-  font: 500 11px/1 var(--fw-mono);
+  font: 500 12px/1 var(--fw-mono);
 }
 .fw-key + .fw-key { margin-left: -2px; }
 .fw-key.ed { border-color: #f4c7a5; color: var(--fw-orange-text); }
@@ -215,7 +215,7 @@
 }
 .fw-ititle { display: flex; align-items: baseline; gap: 6px; margin-right: auto; min-width: 0; }
 .fw-iname { font-size: 13px; font-weight: 600; }
-.fw-iaddr { font: 500 11px var(--fw-mono); color: var(--fw-faint); }
+.fw-iaddr { font: 500 12px var(--fw-mono); color: var(--fw-faint); }
 
 .fw-hex {
   display: flex;
@@ -251,7 +251,7 @@
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.05);
   color: var(--fw-muted);
-  font: 500 11.5px var(--fw-mono);
+  font: 500 12px var(--fw-mono);
   cursor: pointer;
 }
 .fw-revert:hover { background: rgba(0, 0, 0, 0.1); color: var(--fw-ink); }
@@ -261,7 +261,7 @@
   min-height: 17px;
   margin: 3px 0 8px;
   color: var(--fw-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.35;
 }
 .fw-imsg.err { color: var(--fw-red); font-weight: 500; }
@@ -327,9 +327,9 @@
   transition: background 0.15s;
 }
 .fw-frow.hl { background: var(--fw-orange-tint); }
-.fw-fspan { font: 500 10.5px var(--fw-mono); color: var(--fw-faint); }
-.fw-fname { font-size: 11.5px; font-weight: 600; color: var(--fw-ink); }
-.fw-fval { min-width: 0; font-size: 11.5px; color: var(--fw-muted); }
+.fw-fspan { font: 500 12px var(--fw-mono); color: var(--fw-faint); }
+.fw-fname { font-size: 12px; font-weight: 600; color: var(--fw-ink); }
+.fw-fval { min-width: 0; font-size: 12px; color: var(--fw-muted); }
 .fw-fval.bad { color: var(--fw-red); font-weight: 500; }
 .fw-frow.reserved .fw-fname, .fw-frow.fixed .fw-fname, .fw-insp.locked .fw-fname { color: var(--fw-faint); font-weight: 500; }
 
@@ -353,11 +353,11 @@
 .fw-tip.on { opacity: 1; }
 .fw-tip b { font-weight: 600; color: #fff; }
 .fw-tip .m { display: block; margin-top: 2px; color: #9aa1ab; }
-.fw-tip code { font: 500 11.5px var(--fw-mono); color: #ffb685; }
+.fw-tip code { font: 500 12px var(--fw-mono); color: #ffb685; }
 
 /* ---- compact: a narrow container (phone). The field panel opens under the selected line. ---- */
 .fw.compact .fw-body { flex-direction: column; }
-.fw.compact .fw-pane { font-size: 11.5px; line-height: 22px; padding-bottom: 8px; }
+.fw.compact .fw-pane { font-size: 12px; line-height: 22px; padding-bottom: 8px; }
 .fw.compact .fw-b { pointer-events: none; }
 .fw.compact .fw-reg:hover { background: none; }
 .fw.compact .fw-reg.sel { background: var(--fw-orange-tint); }

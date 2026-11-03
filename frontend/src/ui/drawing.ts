@@ -56,10 +56,19 @@ export interface Drawing {
   marks: Map<number, HTMLElement[]>;
 }
 
-function mark(e: Electrode, labels: Art["labels"]): HTMLElement {
+/** Side labels go outward. If another electrode is in the same row on that side (C3 and A1), the label goes above. */
+function labelSide(e: Electrode, all: Electrode[]): "left" | "right" | "above" {
+  const out = e.x < 0.5 ? "left" : "right";
+  const blocked = all.some(
+    (o) => o !== e && Math.abs(o.y - e.y) < 0.08 && (out === "left" ? o.x < e.x : o.x > e.x),
+  );
+  return blocked ? "above" : out;
+}
+
+function mark(e: Electrode, labels: Art["labels"], all: Electrode[]): HTMLElement {
   const m = document.createElement("span");
   const kind = e.pin === "BIASOUT" ? "bias" : e.pin === "SRB1" || e.pin.endsWith("N") ? "ring" : "dot";
-  const where = labels === "below" ? "below" : e.x < 0.5 ? "left" : "right";
+  const where = labels === "below" ? "below" : labelSide(e, all);
   m.className = `el el-${kind} el-${where}`;
   m.style.left = `${e.x * 100}%`;
   m.style.top = `${e.y * 100}%`;
@@ -84,7 +93,7 @@ export function drawing(setup: Setup): Drawing {
   stage.append(box);
   const marks = new Map<number, HTMLElement[]>();
   for (const e of setup.electrodes) {
-    const m = mark(e, art.labels);
+    const m = mark(e, art.labels, setup.electrodes);
     box.append(m);
     const ch = /^IN(\d)/.exec(e.pin);
     if (ch) {
