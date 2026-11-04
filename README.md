@@ -1,46 +1,44 @@
-# ADS1299 simulator
+# ADS1299 register puzzle
 
-A software copy of the ADS1299, a chip that measures tiny voltages from the body, and of the firmware that runs it.
+A browser puzzle about the [ADS1299](https://www.ti.com/product/ADS1299), the TI chip that measures tiny voltages from the body.
 
-The goal: test firmware and host software with no hardware, and get the same results as on a real board.
+Live: [voyant-sim.vercel.app](https://voyant-sim.vercel.app)
 
-## The chip
+## How to play
 
-The [ADS1299](https://www.ti.com/product/ADS1299) from Texas Instruments reads 8 channels of very small signals: EEG (brain), EOG (eyes), or ECG (heart).
-It amplifies each signal, turns it into numbers, and sends them to a microcontroller.
+1. Pick a hardware setup.
+2. Compare the chip's output with the target output.
+3. Edit the firmware registers until the two match. The book icon opens the datasheet.
+4. A green check marks a solved setup.
 
-I used it in [Brain Pong](https://johnhoeksema.com/2026/07/14/brain-pong.html), where eye movements move a Pong paddle.
+Each setup starts from the real Cerelog stock V2 firmware. On a phone, the same puzzle shows as one column.
 
-## How the parts connect
+## The 3 setups
+
+| Setup | Electrodes | What the body does |
+|---|---|---|
+| EEG | 8 on the scalp | Eyes open, eyes closed (alpha waves), eyes open |
+| EOG | 2 beside the eyes | Looks center, left, center, right, center |
+| EMG | 3 pads on the forearm | Rest, flex, rest, hard flex, rest |
+
+You can edit CONFIG1, CH1SET–CH8SET, BIAS_SENSP, BIAS_SENSN, and CONFIG3. One of them is a red herring.
+
+## Where the code is
+
+- `frontend/src/puzzle/`: the body signals, the chip model, the match, and the register map.
+- `frontend/src/ui/`: the page, the firmware editor, and the datasheet viewer.
+- `frontend/public/datasheet/`: clips from the TI datasheet.
+- `backend/`: an older Python model of the chip and the Brain Pong firmware.
+- `reference/`: the datasheet and the board schematics.
+
+## Run it
 
 ```
-body signal  →  ADS1299 chip  →  firmware (ESP32)  →  USB  →  host software
+cd frontend
+npm ci
+npm run dev
+npm test
 ```
-
-This project simulates the first three parts. The host software runs unchanged.
-
-## What it will simulate
-
-- **Analog input:** body signals, electrode noise, and power-line hum.
-- **The chip:** start-up, shut-down, normal streaming, and fault conditions.
-- **Firmware:** the microcontroller code that sets up the chip and streams its data.
-
-## Status
-
-A 3D model of the chip, built from its datasheet, that you can rotate in the browser.
-Pin view shows what each of the 64 pins does, in the datasheet's words.
-
-A Python model of the chip and the Brain Pong firmware runs bring-up, streaming, and shutdown.
-It checks each step against the datasheet's rules.
-
-The website plays these three sequences step by step, slowed down.
-Scopes show each signal into and out of the chip, with a curve to each pin it uses.
-
-## Layout
-
-- `frontend/`: the 3D view and the sequence player (Three.js).
-- `backend/`: the chip and firmware model (Python).
-- `reference/`: the chip's datasheet and the board schematics.
 
 ## Author
 
