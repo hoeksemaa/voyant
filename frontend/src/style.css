@@ -95,19 +95,11 @@ code { font-family: var(--mono); }
 }
 .home-title { position: relative; z-index: 3; text-align: center; pointer-events: none; }
 .home h1 { margin: 0 auto; max-width: 13ch; font-size: clamp(31px, 9vw, 40px); font-weight: 800; line-height: 1.06; letter-spacing: -0.03em; }
-/* How to play: a HUD panel above the levels, so it reads as the brief for every level. */
-.brief {
-  position: relative;
-  z-index: 3;
-  margin: 6px 0 10px;
-  padding: 9px 14px 10px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--orange);
-  border-radius: 4px 12px 12px 4px;
-  background: rgba(255, 253, 247, 0.9);
-}
-.brief-label { margin: 0 0 3px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange-deep); }
-.brief-label::before { content: "> "; }
+/* Level select: the heading over the levels, and the brief for every level. No box: only the
+   levels look like buttons. */
+.brief { position: relative; z-index: 3; margin: 2px 0 12px; padding: 0 2px; }
+.brief-label { margin: 0 0 4px; font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1.15; letter-spacing: 0.02em; text-transform: uppercase; color: var(--orange); }
+.brief-label::before { content: "> "; content: "> " / ""; } /* the prompt is decoration: not in the heading's spoken name */
 .brief-label::after { content: ""; display: inline-block; width: 0.6em; height: 1.1em; margin-left: 4px; vertical-align: -0.2em; background: var(--orange); animation: blink 1.1s steps(1) infinite; }
 .brief-text { margin: 0; font-size: 14.5px; line-height: 1.42; color: var(--ink); }
 .brief-text b { font-weight: 650; }
@@ -124,7 +116,7 @@ code { font-family: var(--mono); }
 .home-hero .chip-canvas:active { cursor: grabbing; }
 .home-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
-/* Levels: one band each, in order of difficulty. HUD corner marks for the game feel. */
+/* Levels: one band each, in order of difficulty. */
 .levels { position: relative; z-index: 3; display: flex; flex-direction: column; gap: 8px; }
 .tile {
   position: relative;
@@ -136,25 +128,13 @@ code { font-family: var(--mono); }
   border-radius: 12px;
   text-align: left;
 }
-.tile::before, .tile::after {
-  content: "";
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  border: 0 solid rgba(22, 24, 28, 0.32);
-  pointer-events: none;
-}
-.tile::before { top: 4px; left: 4px; border-top-width: 1.5px; border-left-width: 1.5px; }
-.tile::after { right: 4px; bottom: 4px; border-right-width: 1.5px; border-bottom-width: 1.5px; }
 .tile:hover { background: #fff; }
-.tile:hover::before, .tile:hover::after { border-color: var(--orange); }
-.tile-badge { position: relative; display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 8px; background: var(--ink); }
-.tile-num { font-family: var(--mono); font-size: 13px; font-weight: 600; color: #fff; }
-.tile-check { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 8px; opacity: 0; }
+/* An empty circle; a green circle with a check mark when the level is solved. */
+.tile-badge { position: relative; display: grid; place-items: center; flex: none; width: 30px; height: 30px; box-sizing: border-box; border: 2px solid rgba(22, 24, 28, 0.3); border-radius: 50%; transition: background 0.2s, border-color 0.2s; }
+.tile-check { position: absolute; inset: -2px; display: grid; place-items: center; opacity: 0; }
 .tile-check svg { width: 20px; height: 20px; }
 .tile-check path, .win-check path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.tile.solved .tile-badge { background: var(--green); }
-.tile.solved .tile-num { opacity: 0; }
+.tile.solved .tile-badge { background: var(--green); border-color: var(--green); }
 .tile.solved .tile-check { opacity: 1; animation: pop 0.45s ease-out; }
 .tile-glyph { flex: none; width: 46px; height: 22px; }
 .tile-glyph svg { display: block; width: 100%; height: 100%; overflow: visible; }
