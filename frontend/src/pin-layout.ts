@@ -17,20 +17,24 @@ export function pinSide(no: number): number {
 }
 
 // Position along the side, centered on the side's middle.
-function along(no: number): number {
+export function along(no: number): number {
   const k = (no - 1) % PKG.pinsPerSide;
   return (k - (PKG.pinsPerSide - 1) / 2) * PKG.pitch;
 }
 
-// A point on the line of pin `no`, `d` mm out from the package center, at height `y`.
-export function pinPoint(no: number, d: number, y = 0): THREE.Vector3 {
-  const s = along(no);
-  switch (pinSide(no)) {
+// A point on side `side` (0–3), `d` mm out from the package center and `s` mm along the side.
+export function sidePoint(side: number, d: number, s: number, y = 0): THREE.Vector3 {
+  switch (side) {
     case 0: return new THREE.Vector3(s, y, d);
     case 1: return new THREE.Vector3(d, y, -s);
     case 2: return new THREE.Vector3(-s, y, -d);
     default: return new THREE.Vector3(-d, y, s);
   }
+}
+
+// A point on the line of pin `no`, `d` mm out from the package center, at height `y`.
+export function pinPoint(no: number, d: number, y = 0): THREE.Vector3 {
+  return sidePoint(pinSide(no), d, along(no), y);
 }
 
 // Rotation about Y that turns +X (the lead's outward axis) to face out from the pin's side.

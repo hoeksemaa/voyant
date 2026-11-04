@@ -12,7 +12,7 @@ export const CH_COLORS = ["#4dabf7", "#ffd43b", "#f783ac", "#3bc9db", "#b197fc",
 export const CH_INK = ["#1c7ed6", "#e67700", "#d6336c", "#0c8599", "#7048e8", "#5c940d", "#ae3ec9", "#099268"];
 export const REF_COLOR = "#5d636d"; // SRB1 reference electrode
 export const BIAS_COLOR = "#8b5cf6"; // bias drive (pin group "bias")
-export const DOUT_COLOR = "#d99a00"; // serial interface (pin group "serial")
+export const SERIAL_INK = "#b07800"; // serial interface wires (DOUT, DRDY): the pin view's amber, deep enough for paper
 export const TARGET_COLOR = "#aab1bb"; // the target trace: quiet grey
 
 export const pinNo = (name: string): number => PINS.find((p) => p.name === name)!.no;

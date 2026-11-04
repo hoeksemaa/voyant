@@ -1,54 +1,76 @@
+import * as THREE from "three";
+import { PKG } from "../package-dims";
+import { HALF, along, pinSide, sidePoint } from "../pin-layout";
+import { GROUPS, PINS, pinDir, type Pin } from "../pins";
 import type { Setup, SetupId } from "../puzzle/types";
 import { ChipView } from "./chip-view";
-import { CH_INK, pinNo } from "./wiring";
+import { BIAS_COLOR, CH_INK, REF_COLOR, SERIAL_INK } from "./wiring";
 
-// The home screen: the title, the 3D chip (drag to swivel), and the three levels.
-// Short analog signals run in from the left into the IN pins; short digital signals run out of
-// DOUT and DRDY to the right. Both fade out before the edge of the screen. Only for show.
+// The home screen: the title, the 3D chip, and the three levels.
+// Each of the 64 pins has a signal line on the board plane: "in" lines flow into the chip, "out"
+// lines flow out (see pinDir). The lines use the level's wire style (a quiet base line and moving
+// dashes) and fade out before the edge of the chip area. Drag the chip to turn it any way.
 
-const OUT_COLOR = "#b07800"; // serial interface (a deeper tone of the pin view's amber)
 const CHECK = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 10.4 L8.6 13.4 L14.5 7.2"/></svg>`;
 
-type Kind = "emg" | "eog" | "eeg" | "dout" | "drdy";
+// The level's wire style (style.css: .wire, .wire-flow, @keyframes flow).
+const BASE_WIDTH = 1.5;
+const BASE_ALPHA = 0.5;
+const FLOW_WIDTH = 1.9;
+const DASH = [3, 9];
+const FLOW_SPEED = 12 / 0.9; // px/s: one dash period per 0.9 s
 
-interface Run {
-  pin: number;
-  color: string;
-  kind: Kind;
-  dir: "in" | "out";
-  phase: number; // where the first packet starts, 0–1
-  slot: number; // start (in) or end (out) height, as a share of the spread
+// The lines on the board plane, in mm.
+const FOOT = HALF + (PKG.leadSpan - PKG.bodySize) / 2 - 0.25; // middle of the lead's foot
+const FOOT_Y = PKG.leadThickness / 2;
+const REACH = 30; // mm past the foot; the chip area cuts the line long before that
+const STEP = 0.75; // mm between path points
+const SPREAD = 0.075; // the lines fan out: share of extra spacing per mm
+const MARGIN = 10; // px: lines end this far inside the chip area
+
+/** The level's color for a pin where the level has one; otherwise the pin view's group color. */
+function pinColor(p: Pin): string {
+  const m = /^IN(\d)[PN]$/.exec(p.name);
+  if (m) return CH_INK[Number(m[1]) - 1];
+  if (p.name === "SRB1") return REF_COLOR;
+  if (p.name === "BIASOUT") return BIAS_COLOR;
+  if (p.group === "serial") return SERIAL_INK;
+  return GROUPS[p.group].color;
 }
 
-const SAMPLES = 72;
+interface Line {
+  pin: Pin;
+  dir: "in" | "out";
+  color: string;
+  path: THREE.Vector3[]; // from the foot outward, in the chip's own frame
+}
 
 export class Home {
   private chip: ChipView | null = null;
-  private ctx: CanvasRenderingContext2D;
-  private runs: Run[] = [];
-  private raf = 0;
-  private t0 = 0;
+  private back = canvas("home-wires home-wires-back");
+  private front = canvas("home-wires home-wires-front");
+  private lines: Line[];
   private still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   private tiles = new Map<SetupId, HTMLButtonElement>();
+  private t0 = performance.now();
+  private pts: { x: number; y: number }[] = [];
+  private dpr = 1;
 
   constructor(
     private root: HTMLElement,
     private hero: HTMLElement,
-    private canvas: HTMLCanvasElement,
     setups: Setup[],
     onPlay: (id: SetupId) => void,
   ) {
-    this.ctx = canvas.getContext("2d")!;
     const nav = root.querySelector(".levels")!;
     for (const s of setups) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = `tile tile-${s.id}`;
       b.innerHTML = `
-        <span class="tile-top"><span class="tile-num">${s.level.n}</span><span class="tile-check">${CHECK}</span></span>
+        <span class="tile-badge"><span class="tile-num">${String(s.level.n).padStart(2, "0")}</span><span class="tile-check">${CHECK}</span></span>
         <span class="tile-glyph">${glyph(s.id)}</span>
-        <b class="tile-name">${s.name}</b>
-        <span class="tile-what">${s.level.what}</span>
+        <span class="tile-text"><b class="tile-name">${s.name}</b><span class="tile-what">${s.level.what}</span></span>
         <span class="diff diff-${s.level.difficulty.toLowerCase()}">${s.level.difficulty}</span>`;
       b.setAttribute("aria-label", `Level ${s.level.n}: ${s.name}, ${s.level.what}, ${s.level.difficulty}`);
       b.addEventListener("click", () => onPlay(s.id));
@@ -56,215 +78,150 @@ export class Home {
       this.tiles.set(s.id, b);
     }
 
-    // Eight analog inputs (one per channel) and the two digital outputs.
-    const kinds: Kind[] = ["emg", "eog", "eeg", "eeg", "eeg", "eeg", "eeg", "eeg"];
-    for (let ch = 1; ch <= 8; ch++) {
-      this.runs.push({ pin: pinNo(`IN${ch}P`), color: CH_INK[ch - 1], kind: kinds[ch - 1], dir: "in", phase: (ch * 0.137) % 1, slot: 0 });
-    }
-    this.runs.push({ pin: pinNo("DOUT"), color: OUT_COLOR, kind: "dout", dir: "out", phase: 0.1, slot: 0 });
-    this.runs.push({ pin: pinNo("DRDY"), color: OUT_COLOR, kind: "drdy", dir: "out", phase: 0.55, slot: 1 });
-    window.addEventListener("resize", () => this.size());
-    document.addEventListener("visibilitychange", () => this.loop());
+    this.lines = PINS.map((pin) => ({ pin, dir: pinDir(pin), color: pinColor(pin), path: fan(pin.no) }));
+    const n = this.lines[0].path.length;
+    for (let i = 0; i < n; i++) this.pts.push({ x: 0, y: 0 });
+    hero.prepend(this.back);
+    hero.append(this.front);
+    new ResizeObserver(() => this.size()).observe(hero);
   }
 
   setSolved(id: SetupId, solved: boolean): void {
     this.tiles.get(id)?.classList.toggle("solved", solved);
   }
 
-  async show(): Promise<void> {
+  show(): void {
     this.root.hidden = false;
-    this.canvas.hidden = false;
     if (!this.chip) {
       this.chip = new ChipView(this.hero, {
         azimuth: 32,
         polar: 44,
         fit: { width: 21, height: 17 },
-        swivel: { azimuth: [-15, 80], polar: [18, 66] },
-        sway: !this.still,
+        spin: { drift: !this.still },
       });
-      this.order();
-      this.chip.onFrame(() => {
-        if (this.still) this.draw(4); // no animation loop: redraw the wires when the chip turns
-      });
+      // The chip canvas goes between the two line layers.
+      this.hero.append(this.front);
+      this.chip.onFrame(() => this.draw());
     }
     this.size();
     this.chip.wake();
-    this.loop();
   }
 
   hide(): void {
     this.root.hidden = true;
-    this.canvas.hidden = true;
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
   }
 
   private size(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.round(window.innerWidth * dpr);
-    this.canvas.height = Math.round(window.innerHeight * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  // Give each input a start height in the order of its pin on screen, so the wires do not cross.
-  private order(): void {
-    const ins = this.runs.filter((r) => r.dir === "in");
-    const at = ins.map((r) => ({ r, p: this.chip!.pin(r.pin) }));
-    at.sort((a, b) => a.p.y - a.p.x * 0.25 - (b.p.y - b.p.x * 0.25));
-    at.forEach((a, i) => (a.r.slot = i / (at.length - 1)));
-  }
-
-  private loop(): void {
-    if (this.raf || this.root.hidden || document.hidden) return;
-    const tick = (now: number) => {
-      this.raf = 0;
-      if (this.root.hidden || document.hidden) return;
-      if (!this.t0) this.t0 = now;
-      this.draw(this.still ? 4 : (now - this.t0) / 1000);
-      if (!this.still) this.raf = requestAnimationFrame(tick);
-    };
-    this.raf = requestAnimationFrame(tick);
-  }
-
-  private draw(time: number): void {
-    const chip = this.chip;
-    if (!chip) return;
-    const { ctx } = this;
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    ctx.clearRect(0, 0, W, H);
-    const hb = this.hero.getBoundingClientRect();
-    const c = chip.center();
-    const cx = hb.left + c.x;
-    const cy = hb.top + c.y;
-    const span = Math.min(hb.height * 0.62, 260);
-
-    for (const r of this.runs) {
-      const p = chip.pin(r.pin);
-      const px = hb.left + p.x;
-      const py = hb.top + p.y;
-      const reach = 34;
-      const ax = px + p.ox * reach;
-      const ay = py + p.oy * reach;
-      let pts: [number, number][];
-      if (r.dir === "in") {
-        const sx = -8;
-        const sy = cy - span * 0.05 + r.slot * span * 0.62;
-        pts = bezier([sx, sy], [sx + (ax - sx) * 0.55, sy], [ax, ay], [px, py]);
-      } else {
-        const ex = W + 8;
-        const ey = cy - span * 0.42 + r.slot * span * 0.14;
-        pts = bezier([px, py], [ax, ay], [ex - (ex - ax) * 0.55, ey], [ex, ey]);
-      }
-      // Fade toward the screen edge: gone before the edge, full strength near the chip.
-      const g =
-        r.dir === "in"
-          ? fade(ctx, 0.02 * W, Math.min(cx - 40, 0.02 * W + Math.max(80, 0.22 * W)), r.color)
-          : fade(ctx, 0.98 * W, Math.max(cx + 40, 0.98 * W - Math.max(80, 0.22 * W)), r.color);
-      ctx.strokeStyle = g;
-      ctx.globalAlpha = 0.34;
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.stroke();
-
-      // Packets: a short burst of the signal, riding along the wire.
-      const lens = cumulative(pts);
-      const L = lens[lens.length - 1];
-      const speed = r.dir === "in" ? 70 : 95; // px/s
-      const len = r.kind === "dout" ? 74 : r.kind === "drdy" ? 26 : 64;
-      const gap = Math.max(L * 0.75, 240);
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 1.7;
-      for (let s0 = ((time * speed + r.phase * gap) % gap) - gap; s0 < L + len; s0 += gap) {
-        const head = s0;
-        const tail = head - len;
-        if (head < 0 || tail > L) continue;
-        ctx.beginPath();
-        let first = true;
-        const steps = 44;
-        for (let k = 0; k <= steps; k++) {
-          const u = tail + (len * k) / steps;
-          if (u < 0 || u > L) continue;
-          const [x, y, nx, ny] = at(pts, lens, u);
-          const v = wave(r.kind, k / steps, r.phase) * (r.kind === "dout" || r.kind === "drdy" ? 4.5 : 6.5);
-          const X = x + nx * v;
-          const Y = y + ny * v;
-          if (first) ctx.moveTo(X, Y);
-          else ctx.lineTo(X, Y);
-          first = false;
-        }
-        ctx.stroke();
-      }
+    const w = this.hero.clientWidth;
+    const h = this.hero.clientHeight;
+    if (!w || !h) return;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    for (const c of [this.back, this.front]) {
+      c.width = Math.round(w * this.dpr);
+      c.height = Math.round(h * this.dpr);
     }
+    this.chip?.requestRender();
+  }
+
+  // After each chip frame: project each line, cut it where it nears the edge of the chip area,
+  // and stroke it like a level wire. Lines lie on the board plane, so from above the chip body
+  // hides them (back layer, under the chip); from below they cover it (front layer).
+  private draw(): void {
+    const chip = this.chip;
+    if (!chip || this.root.hidden) return;
+    const w = this.hero.clientWidth;
+    const h = this.hero.clientHeight;
+    const above = chip.fromAbove();
+    const ctx = (above ? this.back : this.front).getContext("2d")!;
+    const other = (above ? this.front : this.back).getContext("2d")!;
+    other.setTransform(1, 0, 0, 1, 0, 0);
+    other.clearRect(0, 0, other.canvas.width, other.canvas.height);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const time = this.still ? 0 : (performance.now() - this.t0) / 1000;
+    const shift = (time * FLOW_SPEED) % (DASH[0] + DASH[1]);
+    const inside = (p: { x: number; y: number }) => p.x > MARGIN && p.x < w - MARGIN && p.y > MARGIN && p.y < h - MARGIN;
+    ctx.lineCap = "round";
+
+    for (const line of this.lines) {
+      const pts = this.pts;
+      let n = 0;
+      let cut = { x: 0, y: 0 };
+      for (const p of line.path) {
+        chip.project(p, pts[n]);
+        if (!inside(pts[n])) {
+          if (n === 0) break;
+          cut = edge(pts[n - 1], pts[n], w, h);
+          break;
+        }
+        cut = pts[n];
+        n++;
+      }
+      if (n === 0) continue;
+      const x0 = pts[0].x;
+      const y0 = pts[0].y;
+      if (Math.hypot(cut.x - x0, cut.y - y0) < 6) continue;
+
+      const g = ctx.createLinearGradient(x0, y0, cut.x, cut.y);
+      g.addColorStop(0, line.color);
+      g.addColorStop(0.4, line.color);
+      g.addColorStop(1, `${line.color}00`);
+      ctx.strokeStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      for (let i = 1; i < n; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.lineTo(cut.x, cut.y);
+
+      ctx.setLineDash([]);
+      ctx.globalAlpha = BASE_ALPHA;
+      ctx.lineWidth = BASE_WIDTH;
+      ctx.stroke();
+      // Dashes from the pin outward: a growing offset moves them toward the pin (in).
+      ctx.setLineDash(DASH);
+      ctx.lineDashOffset = line.dir === "in" ? shift : -shift;
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = FLOW_WIDTH;
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
     ctx.globalAlpha = 1;
   }
 }
 
-/** A gradient along x: clear at `from`, the full color at `to`. */
-function fade(ctx: CanvasRenderingContext2D, from: number, to: number, color: string): CanvasGradient {
-  const g = ctx.createLinearGradient(from, 0, to, 0);
-  g.addColorStop(0, `${color}00`);
-  g.addColorStop(1, color);
-  return g;
+function canvas(cls: string): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.className = cls;
+  c.setAttribute("aria-hidden", "true");
+  return c;
 }
 
-function bezier(a: [number, number], b: [number, number], c: [number, number], d: [number, number]): [number, number][] {
-  const out: [number, number][] = [];
-  for (let i = 0; i <= SAMPLES; i++) {
-    const t = i / SAMPLES;
-    const m = 1 - t;
-    out.push([
-      m * m * m * a[0] + 3 * m * m * t * b[0] + 3 * m * t * t * c[0] + t * t * t * d[0],
-      m * m * m * a[1] + 3 * m * m * t * b[1] + 3 * m * t * t * c[1] + t * t * t * d[1],
-    ]);
+/** The line of one pin on the board plane: straight out of the foot, then a soft fan. */
+function fan(no: number): THREE.Vector3[] {
+  const side = pinSide(no);
+  const s = along(no);
+  const out: THREE.Vector3[] = [];
+  const bend = 2; // mm of straight-ish run before the fan
+  for (let u = 0; u <= REACH; u += STEP) {
+    const g = u < bend ? (u * u) / (2 * bend) : u - bend / 2; // eases from straight to a fan
+    out.push(sidePoint(side, FOOT + u, s * (1 + SPREAD * g), FOOT_Y));
   }
   return out;
 }
 
-function cumulative(pts: [number, number][]): number[] {
-  const out = [0];
-  for (let i = 1; i < pts.length; i++) out.push(out[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  return out;
+/** Where the segment from a (inside) to b (outside) crosses the inset edge of the w × h box. */
+function edge(a: { x: number; y: number }, b: { x: number; y: number }, w: number, h: number): { x: number; y: number } {
+  let t = 1;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (b.x < MARGIN) t = Math.min(t, (MARGIN - a.x) / dx);
+  if (b.x > w - MARGIN) t = Math.min(t, (w - MARGIN - a.x) / dx);
+  if (b.y < MARGIN) t = Math.min(t, (MARGIN - a.y) / dy);
+  if (b.y > h - MARGIN) t = Math.min(t, (h - MARGIN - a.y) / dy);
+  t = Math.max(0, Math.min(1, t));
+  return { x: a.x + dx * t, y: a.y + dy * t };
 }
 
-/** The point at arc length u, and the unit normal there. */
-function at(pts: [number, number][], lens: number[], u: number): [number, number, number, number] {
-  let i = 1;
-  while (i < lens.length - 1 && lens[i] < u) i++;
-  const f = (u - lens[i - 1]) / Math.max(1e-6, lens[i] - lens[i - 1]);
-  const [x0, y0] = pts[i - 1];
-  const [x1, y1] = pts[i];
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const l = Math.hypot(dx, dy) || 1;
-  return [x0 + dx * f, y0 + dy * f, -dy / l, dx / l];
-}
-
-/** One packet's shape, 0–1 along it. Analog packets taper at both ends. */
-function wave(kind: Kind, s: number, seed: number): number {
-  const win = Math.sin(Math.PI * s) ** 1.5;
-  const k = seed * 50;
-  switch (kind) {
-    case "emg": {
-      const burst = Math.sin(Math.PI * s) ** 3;
-      return burst * (0.55 * Math.sin(97 * s + k) + 0.45 * Math.sin(151 * s + 2 * k) + 0.35 * Math.sin(223 * s + 3 * k));
-    }
-    case "eog":
-      return win * (s < 0.2 ? 0 : s < 0.25 ? (s - 0.2) / 0.05 : s < 0.7 ? 1 : s < 0.75 ? 1 - (s - 0.7) / 0.05 : 0) - 0.15 * win;
-    case "eeg":
-      return win * (0.75 * Math.sin(2 * Math.PI * 3.2 * s + k) + 0.25 * Math.sin(2 * Math.PI * 7.3 * s + 1.7 * k));
-    case "dout": {
-      // 24-bit words as square bits.
-      const bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1];
-      return bits[Math.min(bits.length - 1, Math.floor(s * bits.length))] ? 1 : -1;
-    }
-    case "drdy":
-      return s > 0.25 && s < 0.75 ? -1 : 1; // active low
-  }
-}
-
-/** A small picture of each level's signal, for the tiles. */
+/** A small picture of each level's signal, for the level bands. */
 function glyph(id: SetupId): string {
   const n = 60;
   const pts: string[] = [];

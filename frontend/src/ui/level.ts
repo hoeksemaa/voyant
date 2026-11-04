@@ -2,7 +2,7 @@ import type { Bank, MatchResult, Setup, SimResult } from "../puzzle/types";
 import { ChipView } from "./chip-view";
 import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, rangeText, screen, type Range } from "./traces";
-import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, TARGET_COLOR, channelTag, pinNo, wires } from "./wiring";
+import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_COLOR, channelTag, pinNo, wires } from "./wiring";
 
 // One level on the phone: analog in (top) → the chip (middle) → digital out (bottom).
 // Wires run from the input card's ports into the IN pins, and from DOUT and DRDY down to the
@@ -128,7 +128,7 @@ export class LevelView {
       p.title = name === "DOUT" ? "DOUT: SPI data out, 24 bits per channel" : "DRDY: data ready, falls when a new sample is ready";
       p.innerHTML = `<i></i><b>${name}</b>`;
       portsOut.append(p);
-      outPorts.push({ el: p, pin: pinNo(name), color: "#b07800" });
+      outPorts.push({ el: p, pin: pinNo(name), color: SERIAL_INK });
     }
     this.spec.className = "spec-out";
     const outHead = head("3", "Digital out", "");
@@ -164,7 +164,7 @@ export class LevelView {
       path.setAttribute("class", "wire");
       path.setAttribute("stroke", color);
       const flow = document.createElementNS(NS, "path");
-      flow.setAttribute("class", `wire-flow flow-${dir}`);
+      flow.setAttribute("class", `wire-flow flow-${dir}${pin === pinNo("BIASOUT") ? " flow-rev" : ""}`);
       flow.setAttribute("stroke", color);
       this.svg.append(path, flow);
       return { from, pin, color, dir, path, flow };

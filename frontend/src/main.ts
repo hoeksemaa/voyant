@@ -30,7 +30,7 @@ const homeEl = $("#home");
 const levelEl = $("#level");
 
 // ---- home ----
-const home = new Home(homeEl, $("#home-hero"), $<HTMLCanvasElement>("#home-wires"), SETUPS, (id) => go(id));
+const home = new Home(homeEl, $("#home-hero"), SETUPS, (id) => go(id));
 
 // ---- level ----
 const clock = new Clock();
@@ -183,7 +183,7 @@ function openHome(): void {
   document.body.dataset.screen = "home";
   document.title = "Can you crack the ADS1299?";
   for (const s of SETUPS) home.setSolved(s.id, state.setups[s.id].solved);
-  void home.show();
+  home.show();
 }
 
 function openLevel(id: SetupId): void {

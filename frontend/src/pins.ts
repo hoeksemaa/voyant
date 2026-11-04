@@ -122,3 +122,16 @@ export const PINS: Pin[] = ORDER.map((name, i) => {
   const [type, description, group] = BY_NUMBER[no] ?? ROWS[name];
   return { no, name, type, description, group };
 });
+
+/**
+ * Signal direction of a pin, as the home screen draws it: "in" flows into the chip, "out" flows
+ * out. From the datasheet type: outputs are out; inputs and supplies are in. Exceptions:
+ * VREFP is out (the chip drives its internal reference onto the capacitor). CLK is out: the
+ * stock firmware sets CONFIG1 = 0xB6, so CLK_EN = 1 and the chip drives its oscillator clock
+ * on CLK. SRB1, SRB2, and BIASINV are in (reference and feedback inputs). GPIO1–4 are in
+ * (their power-up default). NC pins have no type; they count as in.
+ */
+export function pinDir(p: Pin): "in" | "out" {
+  if (p.name === "VREFP" || p.name === "CLK") return "out";
+  return /output/.test(p.type) && !/input/.test(p.type) ? "out" : "in";
+}

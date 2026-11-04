@@ -7,7 +7,8 @@ import { HALF, pinPoint } from "../pin-layout";
 import { PinView } from "../pin-view";
 
 // One 3D ADS1299 in a box on the page. The canvas fills its container. The home screen, the
-// level, and the pin sheet each have one. Each renders only when something changes.
+// level, and the pin sheet each have one. Each renders only when something changes, except the
+// home chip, which turns slowly while nobody drags it.
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -19,13 +20,15 @@ export interface ChipViewOptions {
   azimuth: number; // degrees around the chip; 0 = camera on the pin 1–16 side (lettering upright)
   polar: number; // degrees from straight down
   fit: { width: number; height: number }; // mm of chip that must fit the box
-  /** Drag to swivel, inside these limits (degrees). None: the chip does not move. */
-  swivel?: { azimuth: [number, number]; polar: [number, number] };
-  /** A slow sway while nobody drags (home screen). */
-  sway?: boolean;
-  /** Pin labels and the pin card (the pin sheet). */
+  /** Drag to turn the chip itself in any direction (home screen). With drift, it keeps
+   *  turning slowly about the vertical axis while nobody drags it. */
+  spin?: { drift: boolean };
+  /** Pin labels and the pin card (the pin sheet). Drag to orbit, pinch to zoom. */
   pins?: boolean;
 }
+
+const UP = new THREE.Vector3(0, 1, 0);
+const DRIFT = 0.15; // rad/s, the idle turn
 
 export interface Pt {
   x: number; // css px from the container's left
@@ -43,11 +46,17 @@ export class ChipView {
   private controls: OrbitControls | null = null;
   private pinView: PinView | null = null;
   private body: THREE.Object3D;
+  private chipGroup: THREE.Object3D;
+  private pivot = new THREE.Group(); // turns about the chip's center (spin)
   private queued = false;
   private last = 0;
-  private idle = 0; // seconds since the last drag (sway)
+  private idle = 0; // seconds since the last drag
   private dragging = false;
-  private swayT = 0;
+  private drag: { id: number; x: number; y: number; t: number } | null = null;
+  private omega = new THREE.Vector3(); // spin: angular velocity in world space, rad/s
+  private q = new THREE.Quaternion();
+  private axis = new THREE.Vector3();
+  private m4 = new THREE.Matrix4();
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private v = new THREE.Vector3();
@@ -76,27 +85,28 @@ export class ChipView {
 
     const max = renderer.capabilities.getMaxAnisotropy();
     const chip = buildChip(max);
-    scene.add(chip.group);
-    this.body = chip.body;
-
     const target = new THREE.Vector3(0, 0.55, 0);
+    // The chip hangs in a pivot at its center, so a spin turns it in place.
+    this.pivot.position.copy(target);
+    chip.group.position.sub(target);
+    this.pivot.add(chip.group);
+    scene.add(this.pivot);
+    this.body = chip.body;
+    this.chipGroup = chip.group;
+
     camera.position.setFromSpherical(new THREE.Spherical(40, deg(opts.polar), deg(opts.azimuth))).add(target);
     camera.lookAt(target);
 
-    if (opts.swivel || opts.pins) {
+    if (opts.spin) {
+      this.bindSpin();
+    } else if (opts.pins) {
       const c = (this.controls = new OrbitControls(camera, this.canvas));
       c.target.copy(target);
       c.enablePan = false;
-      c.enableZoom = !!opts.pins;
+      c.enableZoom = true;
       c.enableDamping = true;
       c.dampingFactor = 0.09;
       c.rotateSpeed = 0.7;
-      if (opts.swivel) {
-        c.minAzimuthAngle = deg(opts.swivel.azimuth[0]);
-        c.maxAzimuthAngle = deg(opts.swivel.azimuth[1]);
-        c.minPolarAngle = deg(opts.swivel.polar[0]);
-        c.maxPolarAngle = deg(opts.swivel.polar[1]);
-      }
       c.addEventListener("start", () => (this.dragging = true));
       c.addEventListener("end", () => {
         this.dragging = false;
@@ -139,8 +149,10 @@ export class ChipView {
 
   /** A pin's foot on screen, in container px, with its outward direction. */
   pin(no: number): Pt {
-    const foot = pinPoint(no, FOOT, FOOT_Y);
-    const out = pinPoint(no, FOOT + 4, FOOT_Y);
+    this.chipGroup.updateWorldMatrix(true, false);
+    const m = this.chipGroup.matrixWorld;
+    const foot = pinPoint(no, FOOT, FOOT_Y).applyMatrix4(m);
+    const out = pinPoint(no, FOOT + 4, FOOT_Y).applyMatrix4(m);
     const [x, y] = this.toBox(foot);
     const [qx, qy] = this.toBox(out);
     const len = Math.hypot(qx - x, qy - y) || 1;
@@ -149,13 +161,98 @@ export class ChipView {
 
   /** The chip's center on screen, in container px. */
   center(): { x: number; y: number } {
-    const [x, y] = this.toBox(new THREE.Vector3(0, 0.6, 0));
+    this.chipGroup.updateWorldMatrix(true, false);
+    const [x, y] = this.toBox(new THREE.Vector3(0, 0.6, 0).applyMatrix4(this.chipGroup.matrixWorld));
     return { x, y };
+  }
+
+  /**
+   * Project points given in the chip's own frame (mm, as in pin-layout) to container px.
+   * Call it after a frame (onFrame), when the chip's matrix is current.
+   */
+  project(local: THREE.Vector3, out: { x: number; y: number }): void {
+    this.v.copy(local).applyMatrix4(this.chipGroup.matrixWorld).project(this.camera);
+    out.x = ((this.v.x + 1) / 2) * this.box.clientWidth;
+    out.y = ((1 - this.v.y) / 2) * this.box.clientHeight;
+  }
+
+  /** True when the camera is on the top side of the board plane (the lead feet). Then the
+   *  body hides lines on that plane; from below, lines on the plane are in front of it. */
+  fromAbove(): boolean {
+    this.m4.copy(this.chipGroup.matrixWorld).invert();
+    return this.v.copy(this.camera.position).applyMatrix4(this.m4).y > FOOT_Y;
   }
 
   private toBox(p: THREE.Vector3): [number, number] {
     this.v.copy(p).project(this.camera);
     return [((this.v.x + 1) / 2) * this.box.clientWidth, ((1 - this.v.y) / 2) * this.box.clientHeight];
+  }
+
+  // ---- spin: drag turns the chip about an axis at right angles to the drag ----
+
+  private bindSpin(): void {
+    const c = this.canvas;
+    c.addEventListener("pointerdown", (e) => {
+      if (this.drag || (e.pointerType === "mouse" && e.button !== 0)) return;
+      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+      c.setPointerCapture(e.pointerId);
+      this.omega.set(0, 0, 0);
+      this.dragging = true;
+      this.requestRender();
+    });
+    c.addEventListener("pointermove", (e) => {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      const len = Math.hypot(dx, dy);
+      if (!len) return;
+      const now = performance.now();
+      const dt = Math.max(8, now - d.t) / 1000;
+      d.x = e.clientX;
+      d.y = e.clientY;
+      d.t = now;
+      // A drag across the smaller side of the box turns the chip about 225 degrees.
+      const angle = (len / Math.max(120, Math.min(this.box.clientWidth, this.box.clientHeight))) * Math.PI * 1.25;
+      this.axis.set(dy / len, dx / len, 0).applyQuaternion(this.camera.quaternion);
+      this.turn(this.axis, angle);
+      this.omega.lerp(this.axis.multiplyScalar(angle / dt), 0.6);
+      this.requestRender();
+    });
+    const end = (e: PointerEvent) => {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.id) return;
+      // A finger that stops before it lifts leaves the chip still.
+      if (performance.now() - d.t > 90 || matchMedia("(prefers-reduced-motion: reduce)").matches) this.omega.set(0, 0, 0);
+      if (this.omega.length() > 12) this.omega.setLength(12);
+      this.drag = null;
+      this.dragging = false;
+      this.idle = 0;
+      this.requestRender();
+    };
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+  }
+
+  private turn(axis: THREE.Vector3, angle: number): void {
+    this.q.setFromAxisAngle(axis, angle);
+    this.pivot.quaternion.premultiply(this.q).normalize();
+  }
+
+  // Inertia after a flick, then (with drift) a slow turn that fades in. True: draw again.
+  private spinStep(dt: number): boolean {
+    if (!this.box.offsetParent) return false;
+    if (this.dragging) return true;
+    const w = this.omega.length();
+    if (w > 0.02) {
+      this.turn(this.axis.copy(this.omega).divideScalar(w), w * dt);
+      this.omega.multiplyScalar(Math.exp(-dt * 2.4));
+    } else this.omega.set(0, 0, 0);
+    if (!this.opts.spin!.drift) return w > 0.02;
+    this.idle += dt;
+    const k = Math.min(1, Math.max(0, (this.idle - 1) / 2.5));
+    if (k > 0) this.turn(UP, k * DRIFT * dt);
+    return true;
   }
 
   private hidden(p: THREE.Vector3): boolean {
@@ -183,7 +280,7 @@ export class ChipView {
       const dt = this.last ? Math.min(0.1, (now - this.last) / 1000) : 1 / 60;
       let more = false;
       if (this.pinView) more = this.pinView.tick(dt) || more;
-      if (this.opts.sway && this.controls && !this.dragging) more = this.sway(dt) || more;
+      if (this.opts.spin) more = this.spinStep(dt) || more;
       if (this.controls) this.controls.update();
       this.camera.updateMatrixWorld();
       this.renderer.render(this.scene, this.camera);
@@ -193,25 +290,9 @@ export class ChipView {
     });
   }
 
-  // A slow figure-eight around the start angle, which fades in after a drag ends.
-  private sway(dt: number): boolean {
-    if (!this.box.offsetParent) return false;
-    this.idle += dt;
-    this.swayT += dt;
-    const k = Math.min(1, Math.max(0, (this.idle - 1.2) / 2.5)) * 0.02;
-    if (k === 0) return true;
-    const c = this.controls!;
-    const s = new THREE.Spherical().setFromVector3(this.v.copy(this.camera.position).sub(c.target));
-    const az = deg(this.opts.azimuth + 14 * Math.sin(this.swayT * 0.35));
-    const po = deg(this.opts.polar + 5 * Math.sin(this.swayT * 0.23));
-    s.theta += (az - s.theta) * k;
-    s.phi += (po - s.phi) * k;
-    this.camera.position.copy(c.target).add(this.v.setFromSpherical(s));
-    return true;
-  }
-
-  /** Start the sway loop (home screen shown). */
+  /** Start the render loop again (home screen shown). */
   wake(): void {
+    this.last = 0;
     this.requestRender();
   }
 
