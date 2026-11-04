@@ -26,6 +26,7 @@ const FLOW_SPEED = PERIOD / 0.9; // px/s: one ball spacing per 0.9 s
 const FOOT = HALF + (PKG.leadSpan - PKG.bodySize) / 2 - 0.25; // middle of the lead's foot, mm
 const FOOT_Y = PKG.leadThickness / 2;
 const MARGIN = 8; // px: the ends of the lines stay this far inside the chip area
+const ROD = 2; // mm: each line leaves its pin straight, along the pin, for this long
 
 /** The level's color for a pin where the level has one; otherwise the pin view's group color. */
 function pinColor(p: Pin): string {
@@ -41,7 +42,7 @@ interface Line {
   dir: "in" | "out";
   color: string;
   foot: THREE.Vector3; // the lead's foot, in the chip's own frame
-  out: THREE.Vector3; // 4 mm further out along the pin
+  tip: THREE.Vector3; // the end of the straight part, ROD mm out along the pin
 }
 
 interface P {
@@ -57,7 +58,7 @@ export class Home {
   private tiles = new Map<SetupId, HTMLButtonElement>();
   private t0 = performance.now();
   private feet: P[] = [];
-  private outs: P[] = [];
+  private tips: P[] = [];
   private dpr = 1;
 
   constructor(
@@ -86,11 +87,11 @@ export class Home {
       dir: pinDir(pin),
       color: pinColor(pin),
       foot: pinPoint(pin.no, FOOT, FOOT_Y),
-      out: pinPoint(pin.no, FOOT + 4, FOOT_Y),
+      tip: pinPoint(pin.no, FOOT + ROD, FOOT_Y),
     }));
     for (let i = 0; i < this.lines.length; i++) {
       this.feet.push({ x: 0, y: 0 });
-      this.outs.push({ x: 0, y: 0 });
+      this.tips.push({ x: 0, y: 0 });
     }
     hero.prepend(this.layer); // under the chip canvas
     new ResizeObserver(() => this.size()).observe(hero);
@@ -145,12 +146,11 @@ export class Home {
     let r = 1; // the chip's radius on screen, from its pin feet
     this.lines.forEach((l, i) => {
       chip.project(l.foot, this.feet[i]);
-      chip.project(l.out, this.outs[i]);
+      chip.project(l.tip, this.tips[i]);
       r = Math.max(r, Math.hypot(this.feet[i].x - c.x, this.feet[i].y - c.y));
     });
     const spread = Math.min(1.8, Math.max(1, (h / 2 - MARGIN) / r)); // far-end height per px of pin height
     const lean = 0.3; // far-end height per px of pin offset across, so neighbors do not cross
-    const reach = Math.max(18, r * 0.16); // how far out of the pin the curve starts to turn
     const time = this.still ? 0 : (performance.now() - this.t0) / 1000;
     ctx.lineCap = "round";
 
@@ -159,32 +159,33 @@ export class Home {
     const fadeOut = [w, Math.min(w - 40, c.x + r + (w - c.x - r) * 0.4)];
 
     this.lines.forEach((l, i) => {
+      // Like a rubber rod: straight out of the pin (foot to tip, in 3D, so it shortens when the
+      // pin points at you), then one smooth bend toward the screen edge. The bend starts along
+      // the rod, so the line keeps the pin's direction for a while before it turns.
       const p = this.feet[i];
-      const q = this.outs[i];
+      const q = this.tips[i];
       const len = Math.hypot(q.x - p.x, q.y - p.y);
-      // Outward direction of the pin on screen (none when the pin points at the camera).
-      const ox = len > 0.5 ? (q.x - p.x) / len : 0;
+      const ox = len > 0.5 ? (q.x - p.x) / len : 0; // the pin's direction on screen
       const oy = len > 0.5 ? (q.y - p.y) / len : 0;
       const side = l.dir === "in" ? -1 : 1; // the screen edge this line goes to
-      // Leave the pin along its own direction when that faces the edge; otherwise head for the
-      // edge at once (under the chip).
-      const k = Math.max(0, Math.min(1, (1 + side * ox) / 2));
-      let ax = k * ox + (1 - k) * side;
-      let ay = k * oy;
-      const al = Math.hypot(ax, ay) || 1;
-      ax = p.x + (ax / al) * reach;
-      ay = p.y + (ay / al) * reach;
       const dy = p.y - c.y;
       const across = side * (p.x - c.x); // + = the pin is on the near side (facing its edge); - = far side, under the chip
       const ey = clamp(c.y + dy * spread - Math.sign(dy) * across * lean * Math.min(1, Math.abs(dy) / r), MARGIN, h - MARGIN);
       const ex = side < 0 ? 0 : w;
-      const mx = ex + (ax - ex) * 0.55;
+      // How far the rod keeps its direction: longer when the pin faces its edge, shorter when
+      // the line has to turn back under the chip.
+      const facing = (1 + side * ox) / 2; // 1 = the pin points at its edge
+      const bend = clamp(Math.hypot(ex - q.x, ey - q.y) * (0.03 + 0.5 * facing ** 1.5), 12, 170);
+      const bx = q.x + ox * bend;
+      const by = q.y + oy * bend;
+      const mx = ex + (bx - ex) * 0.5;
 
       // Every path starts at its screen edge, so the balls keep a steady speed there while the
-      // chip turns (the path length changes at the pin end, which the fade hides less well).
+      // chip turns (the path length changes at the pin end, which the fade hides).
       ctx.beginPath();
       ctx.moveTo(ex, ey);
-      ctx.bezierCurveTo(mx, ey, ax, ay, p.x, p.y);
+      ctx.bezierCurveTo(mx, ey, bx, by, q.x, q.y);
+      ctx.lineTo(p.x, p.y);
       const [x0, x1] = l.dir === "in" ? fadeIn : fadeOut;
       const g = ctx.createLinearGradient(x0, 0, x1, 0);
       g.addColorStop(0, `${l.color}00`);
