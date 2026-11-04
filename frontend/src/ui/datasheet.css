@@ -2,8 +2,8 @@
 
 .ds {
   --ds-ink: #16181c;
-  --ds-muted: #5d636d;
-  --ds-faint: #9aa1ab;
+  --ds-muted: #464b53;
+  --ds-faint: #767c85;
   --ds-rule: #eceef2;
   --ds-orange: #f56200;
   --ds-orange-text: #c2410c;
@@ -170,7 +170,7 @@
 .ds-zoom-img { display: block; max-width: 100%; height: auto; }
 .ds-zoom-cap {
   margin-top: 8px;
-  color: #5d636d;
+  color: #464b53;
   font: 400 12.5px/1.4 Inter, system-ui, sans-serif;
 }
 .ds-zoom-x {

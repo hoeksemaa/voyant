@@ -2,8 +2,8 @@
 
 .fw {
   --fw-ink: #16181c;
-  --fw-muted: #5d636d;
-  --fw-faint: #9aa1ab;
+  --fw-muted: #464b53;
+  --fw-faint: #767c85;
   --fw-rule: #eceef2;
   --fw-orange: #f56200;
   --fw-orange-text: #c2410c;
@@ -101,7 +101,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.fw-cmt b { font-weight: 600; color: #3f4650; }
+.fw-cmt b { font-weight: 600; color: #2f353d; }
 .fw-probe { position: absolute; top: 0; left: 0; visibility: hidden; white-space: pre; pointer-events: none; }
 
 .fw-gut {
@@ -126,14 +126,14 @@
 .fw-line.chg .fw-dot { opacity: 1; transform: none; }
 
 /* syntax colors: calm, light theme */
-.fw-c { color: #7b828c; }
+.fw-c { color: #646a73; }
 .fw-k { color: #7a4dbf; }
 .fw-t { color: #0f7385; }
 .fw-v { color: var(--fw-ink); }
 .fw-n { color: #2c5c9e; }
-.fw-p { color: #8a919b; }
-.fw-bp { color: #8a919b; }
-.fw-b { color: #4a5059; }
+.fw-p { color: #70767f; }
+.fw-bp { color: #70767f; }
+.fw-b { color: #3a3f47; }
 
 /* register lines */
 .fw-reg { cursor: pointer; }
@@ -159,17 +159,17 @@
   transition: background 0.15s;
 }
 .fw-ed .fw-b.ed:hover, .fw-b.hl { background: var(--fw-orange-hover); box-shadow: 0 0 0 1px var(--fw-orange-hover); }
-.fw-ed .fw-b.rsv { color: #b4bac2; cursor: help; }
+.fw-ed .fw-b.rsv { color: #a3a9b1; cursor: help; }
 .fw-b.chg { text-decoration: underline 2px var(--fw-orange); text-underline-offset: 3px; font-weight: 600; }
 .fw-ed .fw-b.bad { color: var(--fw-red); }
 .fw-b.flip { animation: fw-flash 0.45s ease-out; }
 @keyframes fw-flash { from { background: rgba(245, 98, 0, 0.45); } }
 
 .fw-lk { cursor: default; }
-.fw-lk .fw-src, .fw-lk .fw-src *, .fw-lk .fw-cmt, .fw-lk .fw-cmt b { color: #a7adb5; }
+.fw-lk .fw-src, .fw-lk .fw-src *, .fw-lk .fw-cmt, .fw-lk .fw-cmt b { color: #959ba4; }
 .fw-lk.sel { background: #f3f4f6; }
-.fw-lk.sel .fw-gut::before { background: #a7adb5; }
-.fw-skip .fw-src, .fw-skip .fw-src * { color: #a7adb5; }
+.fw-lk.sel .fw-gut::before { background: #959ba4; }
+.fw-skip .fw-src, .fw-skip .fw-src * { color: #959ba4; }
 
 /* ---- field panel ---- */
 .fw-insp {
@@ -202,7 +202,7 @@
 }
 .fw-key + .fw-key { margin-left: -2px; }
 .fw-key.ed { border-color: #f4c7a5; color: var(--fw-orange-text); }
-.fw-key.rsv { border-style: dashed; background: #f7f8fa; color: #b4bac2; }
+.fw-key.rsv { border-style: dashed; background: #f7f8fa; color: #a3a9b1; }
 .fw.compact .fw-empty { display: none; }
 .fw-empty[hidden] { display: none; }
 .fw-insp.none .fw-ihead, .fw-insp.none .fw-imsg { display: none; }
@@ -307,7 +307,7 @@
 }
 .fw-bit.ed { border-color: #f4c7a5; color: var(--fw-orange-text); cursor: pointer; }
 .fw-bit.ed:hover { background: var(--fw-orange-hover); border-color: var(--fw-orange); }
-.fw-bit.rsv { border-style: dashed; color: #b4bac2; background: #f7f8fa; cursor: help; }
+.fw-bit.rsv { border-style: dashed; color: #a3a9b1; background: #f7f8fa; cursor: help; }
 .fw-bit.chg { background: var(--fw-orange-tint); border-color: var(--fw-orange); font-weight: 700; }
 .fw-bit.chg i { color: var(--fw-orange-text); }
 .fw-bit.rsv.bad { border-color: var(--fw-red); color: var(--fw-red); background: #fdf0f2; }

@@ -1,102 +1,217 @@
+import { bodyFor } from "./puzzle/body";
 import { STOCK } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
-import type { Bank, MatchResult, RegisterDef, Setup, SetupId } from "./puzzle/types";
-import { Board } from "./ui/board";
-import { Book } from "./ui/book";
-import { Cards } from "./ui/cards";
-import type { Box, ChipStage } from "./ui/chip-stage";
+import type { MatchResult, RegisterDef, Setup, SetupId, SimResult } from "./puzzle/types";
+import { AnimView } from "./ui/anim";
+import { Clock } from "./ui/clock";
 import { DatasheetViewer, FirmwareEditor } from "./ui/dock-api";
+import { Home } from "./ui/home";
+import { LevelView } from "./ui/level";
+import { Sheet, closeAll } from "./ui/sheet";
 import { CLIPS, PDF_URL, match, simulate, targetFor, usedChannels } from "./ui/sim-api";
 import { load, save } from "./ui/state";
+import { Strip } from "./ui/strip";
+import { showWin } from "./ui/win";
 import "./style.css";
 
-// The register puzzle. Three hardware setups; each starts from Cerelog stock V2 firmware.
-// Edit the registers until the chip's output matches the target. A green check marks a solved setup.
+// The register puzzle as a phone game: a home screen with three levels (EMG, EOG, EEG), and one
+// screen per level. Each level starts from Cerelog stock V2 firmware; edit the registers until
+// the chip's output matches the target. Tools open as full-screen sheets; Pins grows the level's
+// own chip to fill the screen.
 
 const state = load();
 const byId = (id: SetupId): Setup => SETUPS.find((s) => s.id === id)!;
-let setup = byId(state.current);
-const bank = (): Bank => state.setups[setup.id].bank;
+let setup: Setup | null = null;
+let lastSim: SimResult | null = null;
+const bank = () => state.setups[setup!.id].bank;
 
-const boardEl = document.getElementById("board")!;
-const board = new Board(boardEl, {
-  onFocus: focusReg,
-  onHot: (ch) => {
-    board.setHot(ch);
-    chip?.setHot(ch);
+const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+const homeEl = $("#home");
+const levelEl = $("#level");
+
+// ---- home ----
+const home = new Home(homeEl, $("#home-hero"), SETUPS, (id) => go(id));
+
+// ---- level ----
+const clock = new Clock();
+const level = new LevelView(focusReg);
+$("#flow-host").append(level.el);
+let offPlayhead: (() => void) | null = null;
+
+// ---- sheets ----
+const strip = new Strip();
+const fwHost = document.createElement("div");
+fwHost.className = "fw-host";
+const fwSheet = new Sheet({
+  title: "Firmware",
+  onOpen: () => {
+    fwButton.classList.remove("nudge");
+    sessionStorage.setItem("fw-seen", "1");
   },
-  onLayout: () => chip?.requestRender(),
 });
-const cards = new Cards(document.getElementById("cards")!, focusReg);
-const editor = new FirmwareEditor(document.getElementById("firmware")!, {
+fwSheet.root.classList.add("sheet-fw");
+fwSheet.body.append(strip.el, fwHost);
+const dsJump = document.createElement("button");
+dsJump.type = "button";
+dsJump.className = "sheet-link";
+dsJump.textContent = "Datasheet";
+dsJump.addEventListener("click", () => dsSheet.open());
+fwSheet.tools.append(dsJump);
+
+const editor = new FirmwareEditor(fwHost, {
   onChange: (b) => {
-    state.setups[setup.id].bank = b.slice();
+    state.setups[setup!.id].bank = b.slice();
     save(state);
     schedule();
   },
-  onSelect: (reg: RegisterDef) => datasheet.show(reg.name),
+  onSelect: (reg: RegisterDef) => {
+    datasheet.show(reg.name);
+    dsJump.textContent = `${reg.name} in the datasheet`;
+  },
   onReset: () => {
-    state.setups[setup.id].bank = STOCK.slice();
+    state.setups[setup!.id].bank = STOCK.slice();
     save(state);
     editor.setBank(bank(), STOCK);
     run();
   },
 });
-const datasheet = new DatasheetViewer(document.getElementById("datasheet")!, CLIPS, PDF_URL);
-// The datasheet stays closed behind the book icon. It follows the selected register, so it
-// opens on the right clip.
-new Book(
-  document.querySelector<HTMLButtonElement>(".book-toggle")!,
-  document.getElementById("book")!,
-  document.getElementById("datasheet")!,
-  PDF_URL,
-);
 
-// A flag or a row tag points at a register: select it in the editor and in the datasheet.
+const dsSheet = new Sheet({ title: "Datasheet", wide: true });
+dsSheet.root.classList.add("sheet-ds");
+const datasheet = new DatasheetViewer(dsSheet.body, CLIPS, PDF_URL);
+const pdf = document.createElement("a");
+pdf.className = "sheet-link";
+pdf.href = PDF_URL;
+pdf.target = "_blank";
+pdf.rel = "noopener";
+pdf.textContent = "Full PDF ↗";
+dsSheet.tools.append(pdf);
+
+const anim = new AnimView(clock);
+let animStale = true;
+const animSheet = new Sheet({
+  title: "Animation",
+  onOpen: () => {
+    if (animStale && lastSim) anim.setAnalog(lastSim.analog);
+    animStale = false;
+    anim.start();
+  },
+  onClose: () => anim.stop(),
+});
+animSheet.root.classList.add("sheet-anim");
+animSheet.body.append(anim.el);
+
+// ---- toolbar ----
+const fwButton = $<HTMLButtonElement>('.toolbar [data-act="firmware"]');
+const pinsButton = $<HTMLButtonElement>('.toolbar [data-act="pins"]');
+pinsButton.setAttribute("aria-pressed", "false");
+function setPins(on: boolean, instant = false): void {
+  level.setPins(on, instant);
+  pinsButton.classList.toggle("on", level.pinsOn);
+  pinsButton.setAttribute("aria-pressed", String(level.pinsOn));
+}
+const actions: Record<string, () => void> = {
+  home: () => goHome(),
+  pins: () => setPins(!level.pinsOn),
+  datasheet: () => dsSheet.toggle(),
+  firmware: () => fwSheet.toggle(),
+  anim: () => animSheet.toggle(),
+};
+for (const b of document.querySelectorAll<HTMLButtonElement>(".toolbar [data-act]")) {
+  b.addEventListener("click", () => actions[b.dataset.act!]());
+}
+window.addEventListener("keydown", (e) => {
+  if (levelEl.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Esc puts the pins away, after any open sheet (the sheet takes the key first) or the win card.
+  const sheetOpen = document.body.classList.contains("sheet-open");
+  if (e.key === "Escape" && level.pinsOn && !e.defaultPrevented && !sheetOpen && !document.querySelector(".win")) {
+    e.preventDefault();
+    setPins(false);
+    return;
+  }
+  const t = e.target as HTMLElement;
+  if (t.closest("input, textarea, select, [contenteditable]")) return;
+  const key = { h: "home", p: "pins", d: "datasheet", f: "firmware", a: "anim" }[e.key.toLowerCase()];
+  if (key && !(key !== "home" && document.querySelector(".win"))) {
+    e.preventDefault();
+    actions[key]();
+  }
+});
+
+// A flag or a row tag points at a register: open the firmware there.
 function focusReg(name: string): void {
+  fwSheet.open();
   editor.focus(name);
   datasheet.show(name);
 }
 
-// Setup tabs.
-const CHECK = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 10.4 L8.6 13.4 L14.5 7.2"/></svg>`;
-const tabs = SETUPS.map((s) => {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "tab";
-  b.setAttribute("role", "tab");
-  b.dataset.id = s.id;
-  b.innerHTML = `<span class="check">${CHECK}</span><span class="tab-text"><b>${s.name}</b><span>${s.detail}</span></span>`;
-  b.addEventListener("click", () => open(s.id));
-  document.querySelector(".tabs")!.append(b);
-  return b;
-});
-
-function paintTabs(): void {
-  for (const b of tabs) {
-    const id = b.dataset.id as SetupId;
-    const solved = state.setups[id].solved;
-    b.setAttribute("aria-selected", String(id === setup.id));
-    b.classList.toggle("solved", solved);
-    b.title = solved ? `${byId(id).name}: solved` : byId(id).name;
-  }
+// ---- screens ----
+function go(id: SetupId): void {
+  if (location.hash !== `#${id}`) location.hash = id;
+  else route();
 }
 
-function open(id: SetupId): void {
+function goHome(): void {
+  history.pushState(null, "", location.pathname + location.search);
+  route();
+}
+
+function route(): void {
+  const id = location.hash.slice(1);
+  if (SETUPS.some((s) => s.id === id)) openLevel(id as SetupId);
+  else openHome();
+}
+window.addEventListener("hashchange", route);
+window.addEventListener("popstate", route);
+
+function openHome(): void {
+  closeAll();
+  setPins(false, true);
+  document.querySelector(".win")?.remove();
+  offPlayhead?.();
+  offPlayhead = null;
+  levelEl.hidden = true;
+  document.body.dataset.screen = "home";
+  document.title = "Can you crack the ADS1299?";
+  for (const s of SETUPS) home.setSolved(s.id, state.setups[s.id].solved);
+  home.show();
+}
+
+function openLevel(id: SetupId): void {
+  closeAll();
+  setPins(false, true);
+  home.hide();
   setup = byId(id);
   state.current = id;
   save(state);
-  history.replaceState(null, "", `#${id}`);
+  levelEl.hidden = false;
+  document.body.dataset.screen = "level";
+  document.title = `${setup.name} · Can you crack the ADS1299?`;
+  window.scrollTo(0, 0);
+
+  $(".lv-num").textContent = String(setup.level.n);
+  $(".lv-name").textContent = setup.name;
+  const diff = $(".lv-head .diff");
+  diff.textContent = setup.level.difficulty;
+  diff.className = `diff diff-${setup.level.difficulty.toLowerCase()}`;
+  $(".lv-detail").textContent = `${setup.level.what} · ${setup.detail}`;
+  fwButton.classList.toggle("nudge", !sessionStorage.getItem("fw-seen"));
+
   const target = targetFor(setup);
-  board.setSetup(setup, target);
-  cards.setSetup(setup, target);
+  level.setSetup(setup, target);
+  void level.mountChip();
+  strip.setSetup(setup, target);
+  clock.duration = setup.duration;
+  clock.seek(0);
+  anim.setSetup(setup, bodyFor(setup).marks, target.analog);
+  animStale = true;
   editor.setBank(bank(), STOCK);
-  paintTabs();
   run();
-  chip?.setLinks(board.links(), board.litPins());
+  offPlayhead?.();
+  offPlayhead = clock.on((t) => level.setTime(t));
 }
 
-// Simulate, compare, and draw. Edits come fast (a click per bit), so wait ~30 ms for the last one.
+// ---- simulate, compare, draw ----
 let timer = 0;
 function schedule(): void {
   clearTimeout(timer);
@@ -105,98 +220,45 @@ function schedule(): void {
 
 function run(): void {
   clearTimeout(timer);
-  const sim = simulate(setup, bank());
-  const m = match(sim, targetFor(setup), usedChannels(setup));
-  board.setResult(sim, m, bank());
-  cards.setResult(sim, m, bank());
-  paintMini(m);
-  const s = state.setups[setup.id];
-  if (m.pass && !s.solved) {
-    s.solved = true;
+  if (!setup) return;
+  const s = setup;
+  const sim = simulate(s, bank());
+  lastSim = sim;
+  const m = match(sim, targetFor(s), usedChannels(s));
+  level.setResult(sim, m, bank());
+  strip.setResult(sim, m);
+  if (animSheet.isOpen) anim.setAnalog(sim.analog);
+  else animStale = true;
+  paintScore(m);
+  const st = state.setups[s.id];
+  if (m.pass !== st.solved && m.pass) {
+    st.solved = true;
     save(state);
-    paintTabs();
-    const tab = tabs.find((b) => b.dataset.id === setup.id)!;
-    tab.classList.add("just-solved");
-    setTimeout(() => tab.classList.remove("just-solved"), 900);
+    const i = SETUPS.indexOf(s);
+    const next = SETUPS.slice(i + 1).find((x) => !state.setups[x.id].solved) ?? SETUPS.find((x) => !state.setups[x.id].solved) ?? null;
+    window.setTimeout(() => {
+      if (setup !== s) return;
+      showWin({
+        setup: s,
+        bank: bank(),
+        next,
+        allSolved: SETUPS.every((x) => state.setups[x.id].solved),
+        onNext: () => {
+          closeAll();
+          if (next) go(next.id);
+        },
+        onHome: () => goHome(),
+      });
+    }, 650);
   }
 }
 
-// Phone: the output cards are far above the firmware. While they are out of view, a small
-// pill at the bottom shows the match (one dot per channel). A tap on it scrolls up to the cards.
-const cardsEl = document.getElementById("cards")!;
-const mini = document.createElement("button");
-mini.type = "button";
-mini.className = "mini-score";
-mini.hidden = true;
-mini.setAttribute("aria-label", "Go to the output");
-mini.addEventListener("click", () => cardsEl.scrollIntoView({ behavior: "smooth", block: "start" }));
-document.body.append(mini);
-let cardsInView = true;
-// "In view": the cards reach into the band under the sticky tabs, down to 60% of the screen height.
-new IntersectionObserver(
-  ([e]) => {
-    cardsInView = e.isIntersecting;
-    mini.hidden = cardsInView;
-  },
-  { rootMargin: "-80px 0px -40% 0px" },
-).observe(cardsEl);
-
-function paintMini(m: MatchResult): void {
+function paintScore(m: MatchResult): void {
   const used = m.channels.filter((c) => m.used.includes(c.ch));
-  const dots = used.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
   const passed = used.filter((c) => c.pass).length;
-  mini.classList.toggle("good", m.pass);
-  mini.innerHTML = `<span class="mini-dots">${dots}</span><span>${m.pass ? "Solved" : `${passed} / ${used.length} match`}</span><span class="mini-up">↑</span>`;
-  mini.hidden = cardsInView;
+  $(".lv-score .dots").innerHTML = used.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
+  $(".lv-count").textContent = m.pass ? "Solved" : `${passed} / ${used.length} match`;
+  $(".lv-score").classList.toggle("good", m.pass);
 }
 
-// The 3D chip: desktop only. Phones never load three.js or make a WebGL context.
-const desk = matchMedia("(min-width: 1100px)");
-let chip: ChipStage | null = null;
-let loading = false;
-
-function region(pins: boolean): Box {
-  const b = boardEl.getBoundingClientRect();
-  if (pins) return { left: b.left, top: b.top, width: b.width, height: b.height };
-  const c = board.chipBox.getBoundingClientRect();
-  return { left: c.left, top: b.top, width: c.width, height: b.height };
-}
-
-async function layout(): Promise<void> {
-  document.body.classList.toggle("desk", desk.matches);
-  if (!desk.matches) {
-    if (chip?.pins) setPins(false);
-    return;
-  }
-  if (chip || loading) return;
-  loading = true;
-  const { ChipStage } = await import("./ui/chip-stage");
-  chip = new ChipStage(document.getElementById("stage")!, region);
-  chip.setLinks(board.links(), board.litPins());
-}
-desk.addEventListener("change", () => void layout());
-window.addEventListener("resize", () => chip?.resize());
-
-// Pin view: the board fades, and the chip fills the space with every pin named.
-const pinsButton = document.querySelector<HTMLButtonElement>(".pins-toggle")!;
-function setPins(on: boolean): void {
-  if (!chip) return;
-  pinsButton.setAttribute("aria-pressed", String(on));
-  chip.setPins(on);
-}
-pinsButton.addEventListener("click", () => setPins(!chip?.pins));
-window.addEventListener("keydown", (e) => {
-  const t = e.target as HTMLElement;
-  if (e.metaKey || e.ctrlKey || e.altKey || t.closest("input, textarea, select, [contenteditable]")) return;
-  if (e.key === "p" || e.key === "P") setPins(!chip?.pins);
-  else if (e.key === "Escape" && chip?.pins) setPins(false);
-});
-
-// A link to #eeg, #eog, or #emg opens that setup.
-window.addEventListener("hashchange", () => {
-  const id = location.hash.slice(1);
-  if (SETUPS.some((s) => s.id === id) && id !== setup.id) open(id as SetupId);
-});
-
-open(setup.id);
-void layout();
+route();

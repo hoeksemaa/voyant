@@ -2,39 +2,62 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f1e8" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <meta name="description" content="A puzzle on the ADS1299 biosignal chip: edit the real firmware registers until the chip's output matches the target. Three setups: EEG, EOG, and EMG." />
+    <meta name="description" content="Can you crack the ADS1299 chip? A three-level puzzle: edit the real firmware registers of a biosignal chip until its output matches the target. EMG, EOG, EEG." />
+    <meta property="og:title" content="Can you crack the ADS1299 chip?" />
+    <meta property="og:description" content="Three levels: EMG, EOG, EEG. Edit the real firmware registers until the chip's output matches the target." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <title>ADS1299 register puzzle</title>
+    <title>Can you crack the ADS1299?</title>
   </head>
   <body>
-    <div id="stage"></div>
-    <header class="topbar">
-      <div class="brand">
-        <h1>ADS1299</h1>
-        <p>Edit the firmware until the output matches the target.</p>
-      </div>
-      <nav class="tabs" role="tablist" aria-label="Hardware setups"></nav>
-      <div class="links">
-        <button type="button" class="pins-toggle" aria-pressed="false" title="Pin view (P)">Pins</button>
-        <button type="button" class="book-toggle" aria-expanded="false" aria-controls="book" aria-label="Datasheet" title="Datasheet (D)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.9 4.6 4 4.7v13.1c3.9-.1 6.3.5 8 1.8 1.7-1.3 4.1-1.9 8-1.8V4.7c-3.9-.1-6.3.5-8 1.8Z"/><path d="M12 6.5v13.1"/></svg></button>
-        <a href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source</a>
-        <a class="credit" href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John</a>
-      </div>
-    </header>
-    <main class="board" id="board"></main>
-    <section class="cards" id="cards" aria-label="Channels"></section>
-    <section class="dock">
-      <div class="dock-panel dock-firmware" id="firmware"></div>
-    </section>
-    <div class="book" id="book" hidden>
-      <div class="book-panel" role="dialog" aria-label="Datasheet" id="datasheet"></div>
-    </div>
-    <footer class="foot"><a href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John</a></footer>
+    <main class="app">
+      <section class="home" id="home" hidden>
+        <header class="home-title">
+          <h1>Can you crack the ADS1299 chip?</h1>
+        </header>
+        <div class="home-hero" id="home-hero"></div>
+        <div class="brief">
+          <p class="brief-label">How to play</p>
+          <p class="brief-text">In each level, edit the chip's real <b>firmware registers</b> until its <b>output</b> matches the <b>target</b>.</p>
+        </div>
+        <nav class="levels" aria-label="Levels"></nav>
+        <footer class="foot">
+          <a href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source<span class="ext" aria-hidden="true">↗</span></a>
+          <span aria-hidden="true">·</span>
+          <a href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John<span class="ext" aria-hidden="true">↗</span></a>
+        </footer>
+      </section>
+
+      <section class="level" id="level" hidden>
+        <nav class="toolbar" aria-label="Level tools">
+          <button type="button" data-act="home" title="Home (H)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.6V20h12V9.6"/><path d="M10 20v-5.5h4V20"/></svg><span>Home</span></button>
+          <button type="button" data-act="pins" title="Pins (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.6"/><path d="M10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5"/></svg><span>Pins</span></button>
+          <button type="button" data-act="datasheet" title="Datasheet (D)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4M9.6 12h5.8M9.6 15.5h5.8"/></svg><span>Datasheet</span></button>
+          <button type="button" data-act="firmware" class="primary" title="Firmware (F)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7.5 4 12l4.5 4.5M15.5 7.5 20 12l-4.5 4.5M13.4 5.5l-2.8 13"/></svg><span>Firmware</span></button>
+          <button type="button" data-act="anim" title="Animation (A)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10.2 8.6 15.6 12l-5.4 3.4z"/></svg><span>Animation</span></button>
+        </nav>
+        <header class="lv-head">
+          <span class="lv-num"></span>
+          <div class="lv-text">
+            <h1><span class="lv-name"></span><span class="diff"></span></h1>
+            <p class="lv-detail"></p>
+          </div>
+          <div class="lv-score"><span class="dots"></span><b class="lv-count"></b></div>
+        </header>
+        <p class="lv-goal">Edit the <b>firmware</b> until the <b>output</b> matches the <b>target</b>.</p>
+        <div id="flow-host"></div>
+        <footer class="foot">
+          <a href="https://github.com/hoeksemaa/voyant" target="_blank" rel="noopener">Source<span class="ext" aria-hidden="true">↗</span></a>
+          <span aria-hidden="true">·</span>
+          <a href="https://github.com/hoeksemaa" target="_blank" rel="noopener">made by John<span class="ext" aria-hidden="true">↗</span></a>
+        </footer>
+      </section>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
