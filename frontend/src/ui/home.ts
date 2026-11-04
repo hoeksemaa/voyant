@@ -73,7 +73,7 @@ export class Home {
       b.type = "button";
       b.className = `tile tile-${s.id}`;
       b.innerHTML = `
-        <span class="tile-badge"><span class="tile-num">${String(s.level.n).padStart(2, "0")}</span><span class="tile-check">${CHECK}</span></span>
+        <span class="tile-badge"><span class="tile-check">${CHECK}</span></span>
         <span class="tile-glyph">${glyph(s.id)}</span>
         <span class="tile-text"><b class="tile-name">${s.name}</b><span class="tile-what">${s.level.what}</span></span>
         <span class="diff diff-${s.level.difficulty.toLowerCase()}">${s.level.difficulty}</span>`;
@@ -107,7 +107,7 @@ export class Home {
       this.chip = new ChipView(this.hero, {
         azimuth: 32,
         polar: 44,
-        fit: { width: 21, height: 17 },
+        fit: { width: 21, height: 19.5 }, // tall enough that a tipped chip (corner up) keeps clear of the edge
         spin: { drift: !this.still },
       });
       this.chip.onFrame(() => this.draw());
@@ -149,7 +149,10 @@ export class Home {
       chip.project(l.tip, this.tips[i]);
       r = Math.max(r, Math.hypot(this.feet[i].x - c.x, this.feet[i].y - c.y));
     });
-    const spread = Math.min(1.8, Math.max(1, (h / 2 - MARGIN) / r)); // far-end height per px of pin height
+    // Far-end height per px of pin height. The bundle fills about 85% of the hero's height; on a
+    // short screen it is less than 1, so the ends gather toward the middle and keep clear of the
+    // title and Level select.
+    const spread = clamp((0.85 * (h / 2 - MARGIN)) / r, 0.5, 1.8);
     const lean = 0.3; // far-end height per px of pin offset across, so neighbors do not cross
     const time = this.still ? 0 : (performance.now() - this.t0) / 1000;
     ctx.lineCap = "round";
@@ -170,12 +173,18 @@ export class Home {
       const side = l.dir === "in" ? -1 : 1; // the screen edge this line goes to
       const dy = p.y - c.y;
       const across = side * (p.x - c.x); // + = the pin is on the near side (facing its edge); - = far side, under the chip
-      const ey = clamp(c.y + dy * spread - Math.sign(dy) * across * lean * Math.min(1, Math.abs(dy) / r), MARGIN, h - MARGIN);
+      const ey = soft(c.y + dy * spread - Math.sign(dy) * across * lean * Math.min(1, Math.abs(dy) / r), MARGIN, h - MARGIN);
       const ex = side < 0 ? 0 : w;
       // How far the rod keeps its direction: longer when the pin faces its edge, shorter when
       // the line has to turn back under the chip.
       const facing = (1 + side * ox) / 2; // 1 = the pin points at its edge
-      const bend = clamp(Math.hypot(ex - q.x, ey - q.y) * (0.03 + 0.5 * facing ** 1.5), 12, 170);
+      let bend = clamp(Math.hypot(ex - q.x, ey - q.y) * (0.03 + 0.5 * facing ** 1.5), 12, 170);
+      // Keep the bend point inside the hero. With all four control points inside, the whole curve
+      // stays inside (a Bézier curve stays in the hull of its control points), so the edge of the
+      // hero (under the title, over Level select) never cuts a line.
+      if (oy < -1e-3) bend = Math.min(bend, (q.y - MARGIN) / -oy);
+      else if (oy > 1e-3) bend = Math.min(bend, (h - MARGIN - q.y) / oy);
+      bend = Math.max(0, bend);
       const bx = q.x + ox * bend;
       const by = q.y + oy * bend;
       const mx = ex + (bx - ex) * 0.5;
@@ -211,6 +220,18 @@ export class Home {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** A soft clamp: the middle 60% passes unchanged; past it, values ease toward the limits but never
+ *  reach them. Unlike clamp, it keeps the lines in order, so they do not pile up on the edge. */
+function soft(v: number, lo: number, hi: number): number {
+  const mid = (lo + hi) / 2;
+  const half = (hi - lo) / 2;
+  const t = (v - mid) / half;
+  const a = Math.abs(t);
+  const K = 0.6;
+  const out = a <= K ? a : K + (1 - K) * Math.tanh((a - K) / (1 - K));
+  return mid + Math.sign(t) * out * half;
+}
 
 function canvas(cls: string): HTMLCanvasElement {
   const c = document.createElement("canvas");
