@@ -68,6 +68,8 @@ export interface Setup {
   phases: Phase[];
   target: Bank; // the firmware that makes the target output
   spec: string; // the line under the target, for example "2,000 SPS · ±187.5 mV"
+  level: { n: number; difficulty: "Easy" | "Medium" | "Hard"; what: string }; // what: "Arm muscle"
+  lesson: string; // one line, shown when the level is solved: what the fix did
 }
 
 export type Level = "act" | "watch"; // act: wrong output. watch: works, but not as intended.

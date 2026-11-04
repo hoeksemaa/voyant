@@ -41,8 +41,16 @@ export function drift(p: FloatNode, t: number): number {
   return v;
 }
 
+/** When things happen in the activity, for the animation (seconds). */
+export interface Marks {
+  blinks: number[]; // blink centers
+  gaze: { t: number; d: number }[]; // EOG saccades: start time and angle change (deg, + = subject's left)
+  gaze0: number; // EOG gaze at t = 0 (deg)
+}
+
 export interface Body {
   setup: Setup;
+  marks: Marks;
   n0: number; // samples in the duration
   n: number; // samples with the pad
   /** Electrode id → potential relative to the body (offset + biosignal + noise), µV, at FS. */
@@ -206,7 +214,7 @@ function floatNode(g: Rng, mainsPhase: number, amp: [number, number], d1: [numbe
 
 // ---- the three bodies -------------------------------------------------------------------------
 
-function eegBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
+function eegBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng, marks: Marks) {
   const m = coarseLen(n);
   const closed = s.phases.find((p) => /closed/i.test(p.label)) ?? { t0: 3, t1: 7 };
   const alphaSize: Record<string, number> = { O1: 1, O2: 1, P3: 0.6, P4: 0.6, C3: 0.3, C4: 0.3, Fp1: 0.1, Fp2: 0.1 };
@@ -222,6 +230,7 @@ function eegBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
     { t: closed.t0 + 0.05, a: BLINK * 1.1, w: 0.12 },
     { t: closed.t1 + 0.05, a: BLINK * 0.85, w: 0.1 },
   ];
+  marks.blinks = events.slice(0, 4).map((e) => e.t);
   const common = coarseNoise(`${s.id}:bg:common`, m, { pink: true, hp: 0.5, lp: 35 });
   const alphaMod = [g.range(0.5, 0.9), g.range(0, 2 * Math.PI)];
 
@@ -261,7 +270,7 @@ function eegBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
   }
 }
 
-function eogBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
+function eogBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng, marks: Marks) {
   const m = coarseLen(n);
   const ANGLE: Record<string, number> = { center: 0, left: 30, right: -30 }; // + = toward the subject's left
   const angleOf = (label: string) => ANGLE[label.toLowerCase()] ?? 0;
@@ -276,6 +285,9 @@ function eogBody(s: Setup, n: number, out: Map<string, Float64Array>, g: Rng) {
   const gaze0 = angleOf(s.phases[0].label);
   const jitter = coarseNoise(`${s.id}:fixation`, m, { lp: 2 }); // fixational drift, ~0.6° rms
   const blinkTimes = [0.45, 4.7, 9.3].map((t) => t + g.range(-0.05, 0.05));
+  marks.blinks = blinkTimes;
+  marks.gaze = moves;
+  marks.gaze0 = gaze0;
   const ROLE: Record<string, { uvPerDeg: number; offset: number; blink: number }> = {
     L: { uvPerDeg: 10.5, offset: 205e3, blink: 35 },
     R: { uvPerDeg: -9.5, offset: -200e3, blink: 30 },
@@ -414,8 +426,9 @@ export function bodyFor(s: Setup): Body {
   const g = rng(`${s.id}:body`);
   const mainsPhase = g.range(0, 2 * Math.PI);
   const elec = new Map<string, Float64Array>();
-  if (s.id === "eeg") eegBody(s, n, elec, g);
-  else if (s.id === "eog") eogBody(s, n, elec, g);
+  const marks: Marks = { blinks: [], gaze: [], gaze0: 0 };
+  if (s.id === "eeg") eegBody(s, n, elec, g, marks);
+  else if (s.id === "eog") eogBody(s, n, elec, g, marks);
   else emgBody(s, n, elec, g);
 
   const floatPin = new Map<string, FloatNode>();
@@ -434,7 +447,7 @@ export function bodyFor(s: Setup): Body {
   const fr = floatNode(rng(`${s.id}:floatref`), mainsPhase, [100e3, 200e3], [2.6e6, 2.8e6], [0.3, 0.5]);
   fr.d0 = 0;
 
-  b = { setup: s, n0, n, elec, coupling: couplings(s), mainsPhase, floatPin, openInput, floatBody: fb, floatRef: fr };
+  b = { setup: s, marks, n0, n, elec, coupling: couplings(s), mainsPhase, floatPin, openInput, floatBody: fb, floatRef: fr };
   cache.set(s, b);
   return b;
 }

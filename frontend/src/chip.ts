@@ -183,9 +183,13 @@ export interface Chip {
   leads: THREE.InstancedMesh; // instance i is pin i + 1
 }
 
+// The textures take ~100 ms to make (a 2048² marking mask), so each view shares one set.
+let grainTex: ReturnType<typeof makeGrainTextures> | null = null;
+let topTexSet: ReturnType<typeof makeTopTextures> | null = null;
+
 export function buildChip(maxAnisotropy: number): Chip {
-  const grain = makeGrainTextures();
-  const topTex = makeTopTextures();
+  const grain = (grainTex ??= makeGrainTextures());
+  const topTex = (topTexSet ??= makeTopTextures());
   for (const t of [topTex.color, topTex.rough, topTex.normal]) t.anisotropy = maxAnisotropy;
 
   const epoxy = new THREE.MeshPhysicalMaterial({

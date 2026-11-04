@@ -8,6 +8,8 @@ import { PINS } from "../pins";
 // Bright for the dark scope screens. The CH label on each row is the second sign, so color
 // is never the only one.
 export const CH_COLORS = ["#4dabf7", "#ffd43b", "#f783ac", "#3bc9db", "#b197fc", "#c0eb75", "#e599f7", "#63e6be"];
+// The same hues, deep enough to read as lines on the paper background (wires, ports).
+export const CH_INK = ["#1c7ed6", "#e67700", "#d6336c", "#0c8599", "#7048e8", "#5c940d", "#ae3ec9", "#099268"];
 export const REF_COLOR = "#5d636d"; // SRB1 reference electrode
 export const BIAS_COLOR = "#8b5cf6"; // bias drive (pin group "bias")
 export const DOUT_COLOR = "#d99a00"; // serial interface (pin group "serial")

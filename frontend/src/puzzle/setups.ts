@@ -48,6 +48,9 @@ export const SETUPS: Setup[] = [
       CH8SET: 0x81,
     }),
     spec: "2,000 SPS · ±187.5 mV",
+    level: { n: 1, difficulty: "Easy", what: "Arm muscle" },
+    lesson:
+      "Surface EMG has most of its power at 50–150 Hz. At 250 SPS, the chip's sinc3 filter cuts at 65 Hz and folds the rest down. CONFIG1 = 0xB3 (2,000 SPS) passes up to 524 Hz.",
   },
   {
     id: "eog",
@@ -82,6 +85,9 @@ export const SETUPS: Setup[] = [
       CH8SET: 0x81,
     }),
     spec: "250 SPS · ±375 mV",
+    level: { n: 2, difficulty: "Medium", what: "Eye movement" },
+    lesson:
+      "The eye electrodes sit about ±200 mV from the reference (electrode DC offset). At gain 24 the input range is ±187.5 mV, so both channels clipped. Gain 12 (CHnSET = 0x50) gives ±375 mV.",
   },
   {
     id: "eeg",
@@ -110,6 +116,9 @@ export const SETUPS: Setup[] = [
     // Fix: put all 8 scalp electrodes in the bias loop.
     target: withRegs(STOCK, { BIAS_SENSP: 0xff }),
     spec: "250 SPS · ±187.5 mV",
+    level: { n: 3, difficulty: "Hard", what: "Brain waves" },
+    lesson:
+      "The bias loop averaged only 2 inputs, so its gain was low and 60 Hz hum got into every channel. BIAS_SENSP = 0xFF puts all 8 scalp electrodes in the bias average: 4.5× more loop gain.",
   },
 ];
 
