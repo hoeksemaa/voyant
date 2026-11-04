@@ -6,9 +6,9 @@ import { PKG } from "../package-dims";
 import { HALF, pinPoint } from "../pin-layout";
 import { PinView } from "../pin-view";
 
-// One 3D ADS1299 in a box on the page. The canvas fills its container. The home screen, the
-// level, and the pin sheet each have one. Each renders only when something changes, except the
-// home chip, which turns slowly while nobody drags it.
+// One 3D ADS1299 in a box on the page. The canvas fills its container. The home screen and the
+// level each have one; the level's chip also grows to show its pins. Each renders only when
+// something changes, except the home chip, which turns slowly while nobody drags it.
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -23,9 +23,11 @@ export interface ChipViewOptions {
   /** Drag to turn the chip itself in any direction (home screen). With drift, it keeps
    *  turning slowly about the vertical axis while nobody drags it. */
   spin?: { drift: boolean };
-  /** Pin labels and the pin card (the pin sheet). Drag to orbit, pinch to zoom. */
+  /** Pin labels, dots, and the pin card, shown with setPins(true) (the level's expanded chip). */
   pins?: boolean;
 }
+
+type Fit = ChipViewOptions["fit"];
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DRIFT = 0.15; // rad/s, the idle turn
@@ -56,6 +58,8 @@ export class ChipView {
   private omega = new THREE.Vector3(); // spin: angular velocity in world space, rad/s
   private q = new THREE.Quaternion();
   private axis = new THREE.Vector3();
+  private tween: { from: THREE.Spherical; z0: number; t0: number; ms: number } | null = null; // resetView
+  private zoom = 1; // camera distance / fitDistance(): a pinch or scroll in the pin view changes it
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private v = new THREE.Vector3();
@@ -96,25 +100,8 @@ export class ChipView {
     camera.position.setFromSpherical(new THREE.Spherical(40, deg(opts.polar), deg(opts.azimuth))).add(target);
     camera.lookAt(target);
 
-    if (opts.spin) {
-      this.bindSpin();
-    } else if (opts.pins) {
-      const c = (this.controls = new OrbitControls(camera, this.canvas));
-      c.target.copy(target);
-      c.enablePan = false;
-      c.enableZoom = true;
-      c.enableDamping = true;
-      c.dampingFactor = 0.09;
-      c.rotateSpeed = 0.7;
-      c.addEventListener("start", () => (this.dragging = true));
-      c.addEventListener("end", () => {
-        this.dragging = false;
-        this.idle = 0;
-      });
-      c.addEventListener("change", () => this.requestRender());
-    } else {
-      this.canvas.style.pointerEvents = "none";
-    }
+    if (opts.spin) this.bindSpin();
+    else this.canvas.style.pointerEvents = "none";
 
     if (opts.pins) {
       this.pinView = new PinView({
@@ -139,6 +126,70 @@ export class ChipView {
 
   setPins(on: boolean): void {
     this.pinView?.setOn(on);
+  }
+
+  /** On: drag to orbit, pinch or scroll to zoom. Off: the chip is still and lets touches through. */
+  setInteractive(on: boolean): void {
+    if (on === !!this.controls) return;
+    if (on) {
+      const c = (this.controls = new OrbitControls(this.camera, this.canvas));
+      c.target.copy(this.pivot.position);
+      c.update(); // the constructor's own update() aimed the camera at (0, 0, 0)
+      c.enablePan = false;
+      c.enableDamping = true;
+      c.dampingFactor = 0.09;
+      c.rotateSpeed = 0.7;
+      c.cursorStyle = "grab"; // grab, and grabbing while dragged
+      c.addEventListener("start", () => (this.dragging = true));
+      c.addEventListener("end", () => {
+        this.dragging = false;
+        this.idle = 0;
+      });
+      c.addEventListener("change", () => {
+        this.zoom = this.camera.position.distanceTo(c.target) / this.fitDistance();
+        this.requestRender();
+      });
+      this.canvas.style.pointerEvents = "auto";
+      this.canvas.style.touchAction = "none";
+      this.resize();
+    } else {
+      this.controls!.dispose();
+      this.controls = null;
+      this.dragging = false;
+      this.canvas.style.pointerEvents = "none";
+      this.canvas.style.touchAction = "";
+      this.canvas.style.cursor = ""; // OrbitControls.dispose() leaves an inline "auto"
+    }
+    this.requestRender();
+  }
+
+  /** The mm of chip that must fit the box (the level grows it for the pin view). */
+  setFit(fit: Fit): void {
+    this.opts.fit = fit;
+    this.resize();
+  }
+
+  /** Turn the camera back to the start angles and zoom over `ms` (after an orbit in the pin view). */
+  resetView(ms: number): void {
+    const from = new THREE.Spherical().setFromVector3(this.v.copy(this.camera.position).sub(this.pivot.position));
+    this.tween = { from, z0: this.zoom, t0: performance.now(), ms: Math.max(1, ms) };
+    this.requestRender();
+  }
+
+  // One step of resetView, by the clock (it keeps time with the level's grow and shrink). True
+  // while it still needs frames.
+  private tweenStep(now: number): boolean {
+    const tw = this.tween!;
+    const k = Math.min(1, Math.max(0, now - tw.t0) / tw.ms);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+    let dTheta = deg(this.opts.azimuth) - tw.from.theta;
+    dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta)); // the short way round
+    this.zoom = tw.z0 + (1 - tw.z0) * e;
+    const s = new THREE.Spherical(this.fitDistance() * this.zoom, tw.from.phi + (deg(this.opts.polar) - tw.from.phi) * e, tw.from.theta + dTheta * e);
+    this.camera.position.copy(this.pivot.position).add(this.v.setFromSpherical(s));
+    this.camera.lookAt(this.pivot.position);
+    if (k >= 1) this.tween = null;
+    return k < 1;
   }
 
   /** Tint some leads (the pins in use). */
@@ -273,6 +324,7 @@ export class ChipView {
       let more = false;
       if (this.pinView) more = this.pinView.tick(dt) || more;
       if (this.opts.spin) more = this.spinStep(dt) || more;
+      if (this.tween) more = this.tweenStep(now) || more;
       if (this.controls) this.controls.update();
       this.camera.updateMatrixWorld();
       this.renderer.render(this.scene, this.camera);
@@ -296,12 +348,16 @@ export class ChipView {
     this.camera.aspect = w / h;
     const target = this.controls?.target ?? new THREE.Vector3(0, 0.55, 0);
     const dir = this.camera.position.clone().sub(target).normalize();
-    this.camera.position.copy(target).addScaledVector(dir, this.fitDistance());
+    this.camera.position.copy(target).addScaledVector(dir, this.fitDistance() * this.zoom);
     if (this.controls) {
       this.controls.minDistance = this.fitDistance() * 0.45;
       this.controls.maxDistance = this.fitDistance() * 1.6;
     }
     this.camera.updateProjectionMatrix();
+    // A new canvas size clears the canvas. Draw at once, so it is not blank for a frame (the
+    // level's chip resizes on every frame while it grows).
+    this.camera.updateMatrixWorld();
+    this.renderer.render(this.scene, this.camera);
     this.requestRender();
   }
 

@@ -12,7 +12,7 @@ window.addEventListener("keydown", (e) => {
 
 export interface SheetOptions {
   title: string;
-  wide?: boolean; // desktop: wider than the phone column (datasheet, pins)
+  wide?: boolean; // desktop: wider than the phone column (datasheet)
   onOpen?: () => void;
   onClose?: () => void;
 }

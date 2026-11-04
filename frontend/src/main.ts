@@ -3,7 +3,6 @@ import { STOCK } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
 import type { MatchResult, RegisterDef, Setup, SetupId, SimResult } from "./puzzle/types";
 import { AnimView } from "./ui/anim";
-import { ChipView } from "./ui/chip-view";
 import { Clock } from "./ui/clock";
 import { DatasheetViewer, FirmwareEditor } from "./ui/dock-api";
 import { Home } from "./ui/home";
@@ -17,7 +16,8 @@ import "./style.css";
 
 // The register puzzle as a phone game: a home screen with three levels (EMG, EOG, EEG), and one
 // screen per level. Each level starts from Cerelog stock V2 firmware; edit the registers until
-// the chip's output matches the target. Tools open as full-screen sheets.
+// the chip's output matches the target. Tools open as full-screen sheets; Pins grows the level's
+// own chip to fill the screen.
 
 const state = load();
 const byId = (id: SetupId): Setup => SETUPS.find((s) => s.id === id)!;
@@ -87,30 +87,6 @@ pdf.rel = "noopener";
 pdf.textContent = "Full PDF ↗";
 dsSheet.tools.append(pdf);
 
-let pinChip: ChipView | null = null;
-const pinSheet = new Sheet({
-  title: "Pins",
-  wide: true,
-  onOpen: () => {
-    if (!pinChip) {
-      const stage = document.createElement("div");
-      stage.className = "pins-stage";
-      pinSheet.body.append(stage);
-      pinChip = new ChipView(stage, { azimuth: 0, polar: 30, fit: { width: 21, height: 19 }, pins: true });
-      // The pin view puts its legend and its card on the page; keep them in the sheet.
-      for (const el of document.querySelectorAll<HTMLElement>(".pin-legend, .pin-card")) pinSheet.body.append(el);
-    }
-    pinChip.resize();
-    pinChip.setPins(true);
-  },
-  onClose: () => pinChip?.setPins(false),
-});
-pinSheet.root.classList.add("sheet-pins");
-const pinNote = document.createElement("p");
-pinNote.className = "sheet-note";
-pinNote.textContent = "Tap a pin to read it. Drag to turn the chip; pinch to zoom.";
-pinSheet.body.append(pinNote);
-
 const anim = new AnimView(clock);
 let animStale = true;
 const animSheet = new Sheet({
@@ -127,9 +103,16 @@ animSheet.body.append(anim.el);
 
 // ---- toolbar ----
 const fwButton = $<HTMLButtonElement>('.toolbar [data-act="firmware"]');
+const pinsButton = $<HTMLButtonElement>('.toolbar [data-act="pins"]');
+pinsButton.setAttribute("aria-pressed", "false");
+function setPins(on: boolean, instant = false): void {
+  level.setPins(on, instant);
+  pinsButton.classList.toggle("on", level.pinsOn);
+  pinsButton.setAttribute("aria-pressed", String(level.pinsOn));
+}
 const actions: Record<string, () => void> = {
   home: () => goHome(),
-  pins: () => pinSheet.toggle(),
+  pins: () => setPins(!level.pinsOn),
   datasheet: () => dsSheet.toggle(),
   firmware: () => fwSheet.toggle(),
   anim: () => animSheet.toggle(),
@@ -139,6 +122,13 @@ for (const b of document.querySelectorAll<HTMLButtonElement>(".toolbar [data-act
 }
 window.addEventListener("keydown", (e) => {
   if (levelEl.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Esc puts the pins away, after any open sheet (the sheet takes the key first) or the win card.
+  const sheetOpen = document.body.classList.contains("sheet-open");
+  if (e.key === "Escape" && level.pinsOn && !e.defaultPrevented && !sheetOpen && !document.querySelector(".win")) {
+    e.preventDefault();
+    setPins(false);
+    return;
+  }
   const t = e.target as HTMLElement;
   if (t.closest("input, textarea, select, [contenteditable]")) return;
   const key = { h: "home", p: "pins", d: "datasheet", f: "firmware", a: "anim" }[e.key.toLowerCase()];
@@ -176,6 +166,7 @@ window.addEventListener("popstate", route);
 
 function openHome(): void {
   closeAll();
+  setPins(false, true);
   document.querySelector(".win")?.remove();
   offPlayhead?.();
   offPlayhead = null;
@@ -188,6 +179,7 @@ function openHome(): void {
 
 function openLevel(id: SetupId): void {
   closeAll();
+  setPins(false, true);
   home.hide();
   setup = byId(id);
   state.current = id;
