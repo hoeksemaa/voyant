@@ -95,14 +95,11 @@ code { font-family: var(--mono); }
 }
 .home-title { position: relative; z-index: 3; text-align: center; pointer-events: none; }
 .home h1 { margin: 0 auto; max-width: 13ch; font-size: clamp(31px, 9vw, 40px); font-weight: 800; line-height: 1.06; letter-spacing: -0.03em; }
-/* Level select: the heading over the levels, and the brief for every level. No box: only the
-   levels look like buttons. */
-.brief { position: relative; z-index: 3; margin: 2px 0 12px; padding: 0 2px; }
-.brief-label { margin: 0 0 4px; font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1.15; letter-spacing: 0.02em; text-transform: uppercase; color: var(--orange); }
+/* Level select: the heading over the levels. No box: only the levels look like buttons. */
+.brief { position: relative; z-index: 3; margin: 2px 0 10px; padding: 0 2px; }
+.brief-label { margin: 0; font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1.15; letter-spacing: 0.02em; text-transform: uppercase; color: var(--orange); }
 .brief-label::before { content: "> "; content: "> " / ""; } /* the prompt is decoration: not in the heading's spoken name */
 .brief-label::after { content: ""; display: inline-block; width: 0.6em; height: 1.1em; margin-left: 4px; vertical-align: -0.2em; background: var(--orange); animation: blink 1.1s steps(1) infinite; }
-.brief-text { margin: 0; font-size: 14.5px; line-height: 1.42; color: var(--ink); }
-.brief-text b { font-weight: 650; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .home-hero {
