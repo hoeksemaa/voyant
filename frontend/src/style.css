@@ -5,12 +5,14 @@
 :root {
   --paper: #f4f1e8;
   --paper-2: #ebe6d9;
-  /* The background: dots on a 16 px grid, a "+" on every 5th, like ASCII graph paper. */
-  --dots: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='80'%20height='80'%3E%3Cg%20fill='rgb(70,60,35)'%20fill-opacity='0.3'%3E%3Ccircle%20cx='8'%20cy='24'%20r='0.9'/%3E%3Ccircle%20cx='8'%20cy='40'%20r='0.9'/%3E%3Ccircle%20cx='8'%20cy='56'%20r='0.9'/%3E%3Ccircle%20cx='8'%20cy='72'%20r='0.9'/%3E%3Ccircle%20cx='24'%20cy='8'%20r='0.9'/%3E%3Ccircle%20cx='24'%20cy='24'%20r='0.9'/%3E%3Ccircle%20cx='24'%20cy='40'%20r='0.9'/%3E%3Ccircle%20cx='24'%20cy='56'%20r='0.9'/%3E%3Ccircle%20cx='24'%20cy='72'%20r='0.9'/%3E%3Ccircle%20cx='40'%20cy='8'%20r='0.9'/%3E%3Ccircle%20cx='40'%20cy='24'%20r='0.9'/%3E%3Ccircle%20cx='40'%20cy='40'%20r='0.9'/%3E%3Ccircle%20cx='40'%20cy='56'%20r='0.9'/%3E%3Ccircle%20cx='40'%20cy='72'%20r='0.9'/%3E%3Ccircle%20cx='56'%20cy='8'%20r='0.9'/%3E%3Ccircle%20cx='56'%20cy='24'%20r='0.9'/%3E%3Ccircle%20cx='56'%20cy='40'%20r='0.9'/%3E%3Ccircle%20cx='56'%20cy='56'%20r='0.9'/%3E%3Ccircle%20cx='56'%20cy='72'%20r='0.9'/%3E%3Ccircle%20cx='72'%20cy='8'%20r='0.9'/%3E%3Ccircle%20cx='72'%20cy='24'%20r='0.9'/%3E%3Ccircle%20cx='72'%20cy='40'%20r='0.9'/%3E%3Ccircle%20cx='72'%20cy='56'%20r='0.9'/%3E%3Ccircle%20cx='72'%20cy='72'%20r='0.9'/%3E%3C/g%3E%3Cpath%20d='M8%204v8M4%208h8'%20stroke='rgb(70,60,35)'%20stroke-opacity='0.34'%20stroke-width='1'/%3E%3C/svg%3E");
+  /* The background: dots on a 24 px grid, a "+" on every 5th, like ASCII graph paper.
+     Fainter on the level screens, where more text sits on the paper. */
+  --dots: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%3E%3Cg%20fill='rgb(70,60,35)'%20fill-opacity='0.24'%3E%3Ccircle%20cx='12'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='108'%20r='0.9'/%3E%3C/g%3E%3Cpath%20d='M12%208v8M8%2012h8'%20stroke='rgb(70,60,35)'%20stroke-opacity='0.3'%20stroke-width='1'/%3E%3C/svg%3E");
+  --dots-faint: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%3E%3Cg%20fill='rgb(70,60,35)'%20fill-opacity='0.15'%3E%3Ccircle%20cx='12'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='12'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='36'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='60'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='84'%20cy='108'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='12'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='36'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='60'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='84'%20r='0.9'/%3E%3Ccircle%20cx='108'%20cy='108'%20r='0.9'/%3E%3C/g%3E%3Cpath%20d='M12%208v8M8%2012h8'%20stroke='rgb(70,60,35)'%20stroke-opacity='0.2'%20stroke-width='1'/%3E%3C/svg%3E");
   --card: #fffdf7;
   --ink: #16181c;
-  --muted: #5d636d;
-  --faint: #8a9099;
+  --muted: #464b53;
+  --faint: #6b717a;
   --line: rgba(22, 24, 28, 0.1);
   --scope: #121418;
   --scope-2: #1a1d22;
@@ -37,11 +39,12 @@ body {
   color: var(--ink);
   background-color: var(--paper);
   background-image: radial-gradient(ellipse at 50% 38%, transparent 55%, rgba(60, 52, 30, 0.06)), var(--dots);
-  background-size: 100% 100%, 80px 80px;
-  background-position: center top, calc(50% - 8px) 0;
+  background-size: 100% 100%, 120px 120px;
+  background-position: center top, calc(50% - 12px) 0;
   background-attachment: fixed, scroll;
   -webkit-font-smoothing: antialiased;
 }
+body[data-screen="level"] { background-image: radial-gradient(ellipse at 50% 38%, transparent 55%, rgba(60, 52, 30, 0.06)), var(--dots-faint); }
 button { font: inherit; color: inherit; }
 a { color: inherit; }
 [hidden] { display: none !important; }
@@ -75,8 +78,8 @@ code { font-family: var(--mono); }
 .diff-medium { background: #fdf0d2; color: #8a5600; }
 .diff-hard { background: var(--red-tint); color: #a51d36; }
 
-.foot { display: flex; justify-content: center; gap: 8px; padding: 18px 0 calc(18px + env(safe-area-inset-bottom)); font-size: 12.5px; color: var(--faint); }
-.foot a { display: inline-flex; align-items: baseline; gap: 2px; text-decoration: none; }
+.foot { display: flex; justify-content: center; gap: 10px; padding: 18px 0 calc(18px + env(safe-area-inset-bottom)); font-size: 13px; color: var(--faint); }
+.foot a { display: inline-flex; align-items: baseline; gap: 2px; font-weight: 600; color: var(--ink); text-decoration: none; }
 .foot a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .foot .ext { font-size: 11px; transition: transform 0.15s; }
 .foot a:hover .ext { transform: translate(1px, -1px); }
@@ -92,27 +95,22 @@ code { font-family: var(--mono); }
 }
 .home-title { position: relative; z-index: 3; text-align: center; pointer-events: none; }
 .home h1 { margin: 0 auto; max-width: 13ch; font-size: clamp(31px, 9vw, 40px); font-weight: 800; line-height: 1.06; letter-spacing: -0.03em; }
-.home h1 em {
-  font-style: normal;
-  font-family: var(--mono);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  background: linear-gradient(transparent 62%, rgba(245, 98, 0, 0.28) 62%);
-}
-/* The subtitle reads like a terminal line, with a block cursor. */
-.home .sub {
+/* How to play: a HUD panel above the levels, so it reads as the brief for every level. */
+.brief {
   position: relative;
   z-index: 3;
-  max-width: 34ch;
-  margin: 6px auto 12px;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-align: center;
-  color: var(--muted);
+  margin: 6px 0 10px;
+  padding: 9px 14px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: 4px 12px 12px 4px;
+  background: rgba(255, 253, 247, 0.9);
 }
-.home .sub::before { content: "> "; color: var(--orange); }
-.home .sub::after { content: ""; display: inline-block; width: 0.55em; height: 1.05em; margin-left: 3px; vertical-align: -0.18em; background: var(--orange); animation: blink 1.1s steps(1) infinite; }
+.brief-label { margin: 0 0 3px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange-deep); }
+.brief-label::before { content: "> "; }
+.brief-label::after { content: ""; display: inline-block; width: 0.6em; height: 1.1em; margin-left: 4px; vertical-align: -0.2em; background: var(--orange); animation: blink 1.1s steps(1) infinite; }
+.brief-text { margin: 0; font-size: 14.5px; line-height: 1.42; color: var(--ink); }
+.brief-text b { font-weight: 650; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .home-hero {
@@ -300,9 +298,10 @@ code { font-family: var(--mono); }
 
 .wires { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .wire { fill: none; stroke-width: 1.5; opacity: 0.5; }
-.wire-flow { fill: none; stroke-width: 1.9; stroke-dasharray: 3 9; stroke-linecap: round; animation: flow 0.9s linear infinite; }
+/* The flow: small balls (zero-length dashes with round caps) that ride the wire in the direction of travel. */
+.wire-flow { fill: none; stroke-width: 3.4; stroke-dasharray: 0.5 13.5; stroke-linecap: round; animation: flow 0.9s linear infinite; }
 .wire-flow.flow-rev { animation-direction: reverse; } /* BIASOUT: drawn port → pin, but the signal flows out */
-@keyframes flow { from { stroke-dashoffset: 12; } to { stroke-dashoffset: 0; } }
+@keyframes flow { from { stroke-dashoffset: 14; } to { stroke-dashoffset: 0; } }
 
 .ports { position: absolute; left: 12px; right: 12px; display: flex; justify-content: center; gap: 6px; z-index: 3; pointer-events: auto; }
 .ports-in { bottom: -9px; }
@@ -726,7 +725,7 @@ code { font-family: var(--mono); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wire-flow, .toolbar .primary.nudge, .home .sub::after { animation: none; }
+  .wire-flow, .toolbar .primary.nudge, .brief-label::after { animation: none; }
   .sheet-panel, .win-card { transition: none; }
 }
 .sheet-fw .fw-title { visibility: hidden; } /* the sheet head already says Firmware */

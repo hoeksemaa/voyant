@@ -56,7 +56,6 @@ export class ChipView {
   private omega = new THREE.Vector3(); // spin: angular velocity in world space, rad/s
   private q = new THREE.Quaternion();
   private axis = new THREE.Vector3();
-  private m4 = new THREE.Matrix4();
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private v = new THREE.Vector3();
@@ -174,13 +173,6 @@ export class ChipView {
     this.v.copy(local).applyMatrix4(this.chipGroup.matrixWorld).project(this.camera);
     out.x = ((this.v.x + 1) / 2) * this.box.clientWidth;
     out.y = ((1 - this.v.y) / 2) * this.box.clientHeight;
-  }
-
-  /** True when the camera is on the top side of the board plane (the lead feet). Then the
-   *  body hides lines on that plane; from below, lines on the plane are in front of it. */
-  fromAbove(): boolean {
-    this.m4.copy(this.chipGroup.matrixWorld).invert();
-    return this.v.copy(this.camera.position).applyMatrix4(this.m4).y > FOOT_Y;
   }
 
   private toBox(p: THREE.Vector3): [number, number] {
