@@ -36,7 +36,7 @@ const home = new Home(homeEl, $("#home-hero"), SETUPS, (id) => go(id));
 
 // ---- level ----
 const clock = new Clock();
-const level = new LevelView(focusReg);
+const level = new LevelView(focusReg, () => setPins(true));
 $("#flow-host").append(level.el);
 let offPlayhead: (() => void) | null = null;
 
