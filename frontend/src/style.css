@@ -641,7 +641,7 @@ html.pins-open .wires { opacity: 0; }
 .anim-time { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
 .anim-art { position: relative; margin: 10px 0 12px; border-radius: var(--r); background: rgba(235, 230, 217, 0.5); }
 .anim-art svg { display: block; width: 100%; height: auto; }
-.anim[data-body="arm"] .anim-art svg { aspect-ratio: 258 / 96; }
+.anim[data-body="arm"] .anim-art svg { aspect-ratio: 258 / 120; }
 .anim[data-body="face"] .anim-art svg, .anim[data-body="head"] .anim-art svg { max-height: 300px; aspect-ratio: 132 / 104; }
 .anim-art svg * { vector-effect: non-scaling-stroke; }
 .anim-art .skin { fill: #fffaf0; stroke: none; }
@@ -652,6 +652,7 @@ html.pins-open .wires { opacity: 0; }
 .anim-art .iris { fill: #3f4652; }
 .anim-art .lid { fill: #f1e6d4; }
 .anim-art .belly { opacity: 0.05; }
+.anim-art .seg { fill: #fffaf0; stroke: #6b7280; stroke-width: 1.5; stroke-linejoin: round; } /* arm: finger and thumb segments */
 .anim-art .knuckles { opacity: 0; }
 .anim-art .glow { opacity: 0.1; }
 .anim-art .el-mark { stroke: #fff; stroke-width: 1.6; }

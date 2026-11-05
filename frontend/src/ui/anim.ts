@@ -1,5 +1,6 @@
 import type { Marks } from "../puzzle/body";
 import type { AnalogIn, Electrode, Setup } from "../puzzle/types";
+import { ArmArt } from "./arm";
 import type { Clock } from "./clock";
 import { fitPhases, phaseStrip, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, type Range, type Screen } from "./traces";
@@ -12,25 +13,7 @@ import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, wires } from "./wiring";
 const NS = "http://www.w3.org/2000/svg";
 
 const ART: Record<Setup["body"], { view: string; svg: string }> = {
-  arm: {
-    view: "-14 4 258 96",
-    svg: `
-      <defs><radialGradient id="musc" cx="50%" cy="50%" r="50%">
-        <stop offset="0" stop-color="#f56200" stop-opacity="0.85"/><stop offset="1" stop-color="#f56200" stop-opacity="0"/>
-      </radialGradient></defs>
-      <path class="skin" d="M-12 23 C10 22.5, 26 21.5, 40 21 C70 19, 100 22, 130 28 C160 33, 185 37, 200 39 L200 61 C185 63, 160 66, 130 71 C100 76, 70 80, 40 79 C26 79, 10 78.5, -12 78.5 Z"/>
-      <ellipse class="belly" cx="92" cy="49" rx="54" ry="20" fill="url(#musc)"/>
-      <path class="line" d="M-12 23 C10 22.5, 26 21.5, 40 21 C70 19, 100 22, 130 28 C160 33, 185 37, 200 39 M200 61 C185 63, 160 66, 130 71 C100 76, 70 80, 40 79 C26 79, 10 78.5, -12 78.5"/>
-      <path class="fine" d="M23 33 Q18 50 23 67 M46 33 C76 27, 112 30, 146 39"/>
-      <g class="hand">
-        <path class="skin" d="M199 39 C208 36, 220 35, 230 37 C238 39, 240.5 45, 240.5 50 C240.5 56, 238 61, 230 63 C220 65, 208 64, 199 61 Z"/>
-        <path class="line" d="M200 39 C208 36, 220 35, 230 37 C238 39, 240.5 45, 240.5 50 C240.5 56, 238 61, 230 63 C220 65, 208 64, 200 61"/>
-        <path class="fine fingers" d="M228.5 44.5 L239 45.5 M229 50 L240 50 M228.5 55.5 L239 54.5"/>
-        <path class="fine knuckles" d="M226 41 Q236 50 226 59"/>
-        <path class="line" d="M213 63.6 C217 70, 225 74.5, 231.5 72 C235 70.5, 234 66.5, 229 63.4"/>
-      </g>
-      <path class="fine" d="M199 42 Q203.5 50 199 58"/>`,
-  },
+  arm: { view: "-14 -30 258 120", svg: "" }, // ArmArt draws it (ui/arm.ts)
   face: {
     view: "-16 -2 132 106",
     svg: `
@@ -63,6 +46,7 @@ interface Mark {
   e: Electrode;
   ch: number | null;
   glow: SVGCircleElement | null;
+  label: SVGTextElement;
 }
 
 interface Lane {
@@ -92,6 +76,7 @@ export class AnimView {
   private lanes: Lane[] = [];
   private ranges: Range[] = [];
   private eyes: HTMLElement | null = null;
+  private armArt: ArmArt | null = null;
   private off: (() => void) | null = null;
 
   constructor(private clock: Clock) {
@@ -127,7 +112,9 @@ export class AnimView {
     this.svg.setAttribute("viewBox", art.view);
     this.svg.innerHTML = art.svg;
     const big = setup.body === "arm";
-    this.pins = setup.electrodes.map((e) => this.mark(e, big));
+    this.armArt = big ? new ArmArt(this.svg) : null;
+    const host = this.armArt?.forearm ?? this.svg; // on the arm, the marks ride the forearm
+    this.pins = setup.electrodes.map((e) => this.mark(e, big, host));
 
     this.eyes?.remove();
     this.eyes = null;
@@ -203,7 +190,7 @@ export class AnimView {
     this.clock.seek(f * this.setup.duration);
   }
 
-  private mark(e: Electrode, big: boolean): Mark {
+  private mark(e: Electrode, big: boolean, host: Element): Mark {
     const box = this.setup!.body === "arm" ? [240, 100] : [100, 100];
     const x = e.x * box[0];
     const y = e.y * box[1];
@@ -252,8 +239,8 @@ export class AnimView {
     label.setAttribute("text-anchor", below ? "middle" : side < 0 ? "end" : "start");
     label.textContent = e.id;
     g.append(label);
-    this.svg.append(g);
-    return { e, ch, glow };
+    host.append(g);
+    return { e, ch, glow, label };
   }
 
   private frame(t: number): void {
@@ -284,20 +271,20 @@ export class AnimView {
 
   private arm(t: number): void {
     const setup = this.setup!;
+    const art = this.armArt;
+    if (!art) return;
     const level = (label: string) => ({ rest: 0, flex: 0.55, "hard flex": 1 })[label.toLowerCase()] ?? 0;
     let c = level(setup.phases[0].label);
-    for (let k = 1; k < setup.phases.length; k++) c += (level(setup.phases[k].label) - level(setup.phases[k - 1].label)) * step(t, setup.phases[k].t0, 0.15);
-    const shake = c > 0.7 ? 0.5 * Math.sin(2 * Math.PI * 9.5 * t) * c : 0; // tremor in a hard grip
-    const hand = this.svg.querySelector<SVGGElement>(".hand");
-    hand?.setAttribute("transform", `translate(200 50) rotate(${(-4 * c + shake).toFixed(2)}) scale(${(1 - 0.13 * c).toFixed(3)} ${(1 + 0.05 * c).toFixed(3)}) translate(-200 -50)`);
-    const fingers = this.svg.querySelector<SVGElement>(".fingers");
-    if (fingers) fingers.style.opacity = (1 - 0.85 * c).toFixed(2);
-    const knuckles = this.svg.querySelector<SVGElement>(".knuckles");
-    if (knuckles) knuckles.style.opacity = (c * 0.9).toFixed(2);
-    const belly = this.svg.querySelector<SVGElement>(".belly");
-    if (belly) {
-      belly.style.opacity = (0.05 + 0.55 * c).toFixed(3);
-      belly.setAttribute("transform", `translate(92 49) scale(1 ${(1 + 0.16 * c).toFixed(3)}) translate(-92 -49)`);
+    for (let k = 1; k < setup.phases.length; k++) c += (level(setup.phases[k].label) - level(setup.phases[k - 1].label)) * step(t, setup.phases[k].t0, 0.35);
+    // A tremor in a hard grip: two close rates, so it does not look like a clock.
+    const grip = Math.max(0, (c - 0.6) / 0.4);
+    const shake = grip * (0.45 * Math.sin(2 * Math.PI * 9.5 * t) + 0.25 * Math.sin(2 * Math.PI * 13.1 * t + 1));
+    art.pose(c, shake);
+    // The labels stay level while the forearm turns.
+    for (const p of this.pins) {
+      const x = p.label.getAttribute("x")!;
+      const y = p.label.getAttribute("y")!;
+      p.label.setAttribute("transform", `rotate(${(-art.angle).toFixed(2)} ${x} ${y})`);
     }
   }
 
