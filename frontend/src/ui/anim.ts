@@ -1,7 +1,8 @@
 import type { Marks } from "../puzzle/body";
 import type { AnalogIn, Electrode, Setup } from "../puzzle/types";
-import { ArmArt } from "./arm";
+import { ArmArt, ELBOW } from "./arm";
 import type { Clock } from "./clock";
+import { LEAD_VIEW, Leads } from "./leads";
 import { fitPhases, phaseStrip, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, type Range, type Screen } from "./traces";
 import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, wires } from "./wiring";
@@ -12,10 +13,9 @@ import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, wires } from "./wiring";
 
 const NS = "http://www.w3.org/2000/svg";
 
-const ART: Record<Setup["body"], { view: string; svg: string }> = {
-  arm: { view: "-14 -30 258 120", svg: "" }, // ArmArt draws it (ui/arm.ts)
+const ART: Record<Setup["body"], { svg: string }> = {
+  arm: { svg: "" }, // ArmArt draws it (ui/arm.ts)
   face: {
-    view: "-16 -2 132 106",
     svg: `
       <path class="line" d="M14.5 40 C2 36, 0 64, 13 67 M85.5 40 C98 36, 100 64, 87 67"/>
       <ellipse class="skin" cx="50" cy="52" rx="36" ry="43"/>
@@ -30,7 +30,6 @@ const ART: Record<Setup["body"], { view: string; svg: string }> = {
       <path class="fine" d="M50 46 L46.5 60 Q50 62 53.5 60 M41 73 Q50 78 59 73"/>`,
   },
   head: {
-    view: "-16 -2 132 104",
     svg: `
       <path class="line" d="M10.5 43 C3 41, 2 61, 10.5 59 M89.5 43 C97 41, 98 61, 89.5 59"/>
       <path class="line" d="M43.5 12.5 L50 4 L56.5 12.5"/>
@@ -77,6 +76,8 @@ export class AnimView {
   private ranges: Range[] = [];
   private eyes: HTMLElement | null = null;
   private armArt: ArmArt | null = null;
+  private leads: Leads | null = null;
+  private marksEl = document.createElementNS(NS, "g"); // the electrode marks, over the leads
   private off: (() => void) | null = null;
 
   constructor(private clock: Clock) {
@@ -108,13 +109,19 @@ export class AnimView {
     this.marks = marks;
     this.clock.duration = setup.duration;
     this.el.dataset.body = setup.body;
-    const art = ART[setup.body];
-    this.svg.setAttribute("viewBox", art.view);
-    this.svg.innerHTML = art.svg;
+    const view = LEAD_VIEW[setup.body];
+    const [, , vw, vh] = view.split(" ").map(Number);
+    this.svg.setAttribute("viewBox", view);
+    this.svg.style.aspectRatio = `${vw} / ${vh}`;
+    this.svg.innerHTML = ART[setup.body].svg;
     const big = setup.body === "arm";
     this.armArt = big ? new ArmArt(this.svg) : null;
-    const host = this.armArt?.forearm ?? this.svg; // on the arm, the marks ride the forearm
-    this.pins = setup.electrodes.map((e) => this.mark(e, big, host));
+    // Body, then the lead wires and ports, then the electrode marks on top.
+    this.leads = new Leads(setup, (e) => this.rest(e));
+    this.marksEl.removeAttribute("transform");
+    this.marksEl.replaceChildren();
+    this.svg.append(this.leads.el, this.marksEl);
+    this.pins = setup.electrodes.map((e) => this.mark(e, big));
 
     this.eyes?.remove();
     this.eyes = null;
@@ -122,7 +129,7 @@ export class AnimView {
       this.eyes = document.createElement("div");
       this.eyes.className = "anim-eyes";
       this.eyes.innerHTML = `<span class="eyes">${EYE}${EYE}</span><span class="eyes-text">Eyes open</span>`;
-      this.art.append(this.eyes);
+      this.status.append(this.eyes); // in the status row: the head's ports use the art's corners
     }
     this.setAnalog(analog);
   }
@@ -190,10 +197,24 @@ export class AnimView {
     this.clock.seek(f * this.setup.duration);
   }
 
-  private mark(e: Electrode, big: boolean, host: Element): Mark {
-    const box = this.setup!.body === "arm" ? [240, 100] : [100, 100];
-    const x = e.x * box[0];
-    const y = e.y * box[1];
+  /** An electrode's place in the art at rest (view box units). */
+  private rest(e: Electrode): [number, number] {
+    const w = this.setup!.body === "arm" ? 240 : 100;
+    return [e.x * w, e.y * 100];
+  }
+
+  /** An electrode's place now: on the arm, it rides the forearm as it turns at the elbow. */
+  private now(e: Electrode): [number, number] {
+    const [x, y] = this.rest(e);
+    const a = this.armArt ? (this.armArt.angle * Math.PI) / 180 : 0;
+    if (!a) return [x, y];
+    const dx = x - ELBOW[0];
+    const dy = y - ELBOW[1];
+    return [ELBOW[0] + dx * Math.cos(a) - dy * Math.sin(a), ELBOW[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+  }
+
+  private mark(e: Electrode, big: boolean): Mark {
+    const [x, y] = this.rest(e);
     const r = big ? 4.6 : 3.4;
     const m = /^IN(\d)P$/.exec(e.pin);
     const ch = m ? Number(m[1]) : null;
@@ -232,14 +253,22 @@ export class AnimView {
     g.append(dot);
     const label = document.createElementNS(NS, "text");
     label.setAttribute("class", "el-label");
-    const below = this.setup!.body === "arm";
+    // Out of the lead's way: the arm's leads go down (label above), the head's go to the side
+    // (label below), the face's go down (label to the side).
+    const body = this.setup!.body;
     const side = e.x < 0.5 ? -1 : 1;
-    label.setAttribute("x", String(below ? x : x + side * (r + 2.5)));
-    label.setAttribute("y", String(below ? y + r + 9 : y + 1.6));
-    label.setAttribute("text-anchor", below ? "middle" : side < 0 ? "end" : "start");
+    if (body === "face") {
+      label.setAttribute("x", String(x + side * (r + 2.5)));
+      label.setAttribute("y", String(y + 1.6));
+      label.setAttribute("text-anchor", side < 0 ? "end" : "start");
+    } else {
+      label.setAttribute("x", String(x));
+      label.setAttribute("y", String(body === "arm" ? y - r - 3.2 : y + r + 6.2));
+      label.setAttribute("text-anchor", "middle");
+    }
     label.textContent = e.id;
     g.append(label);
-    host.append(g);
+    this.marksEl.append(g);
     return { e, ch, glow, label };
   }
 
@@ -261,9 +290,12 @@ export class AnimView {
       if (!p.glow || !p.ch) continue;
       const a = sample(this.act.get(p.ch), t);
       const r0 = setup.body === "arm" ? 4.6 : 3.4;
-      p.glow.setAttribute("r", (r0 + (setup.body === "arm" ? 11 : 7) * a).toFixed(2));
-      p.glow.style.opacity = (0.08 + 0.42 * a).toFixed(3);
+      p.glow.setAttribute("r", (r0 + (setup.body === "arm" ? 11 : setup.body === "head" ? 5 : 7) * a).toFixed(2));
+      p.glow.style.opacity = (0.08 + (setup.body === "head" ? 0.32 : 0.42) * a).toFixed(3);
     }
+
+    // The leads: each electrode's wire to its port on the chip.
+    this.leads?.draw(t, (e) => this.now(e), (ch) => sample(this.act.get(ch), t));
 
     // The traces: bright up to now, faint after.
     for (const lane of this.lanes) this.lane(lane, t);
@@ -280,6 +312,7 @@ export class AnimView {
     const grip = Math.max(0, (c - 0.6) / 0.4);
     const shake = grip * (0.45 * Math.sin(2 * Math.PI * 9.5 * t) + 0.25 * Math.sin(2 * Math.PI * 13.1 * t + 1));
     art.pose(c, shake);
+    this.marksEl.setAttribute("transform", `rotate(${art.angle.toFixed(2)} ${ELBOW[0]} ${ELBOW[1]})`);
     // The labels stay level while the forearm turns.
     for (const p of this.pins) {
       const x = p.label.getAttribute("x")!;
