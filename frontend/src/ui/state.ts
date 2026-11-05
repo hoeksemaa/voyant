@@ -48,6 +48,19 @@ export function load(): State {
   return state;
 }
 
+/** Every level back to its start: stock firmware, not solved, no hints. */
+export function resetAll(state: State): void {
+  for (const s of SETUPS) state.setups[s.id] = fresh();
+}
+
+/** True when no level has changed from its start. */
+export function allFresh(state: State): boolean {
+  return SETUPS.every((s) => {
+    const x = state.setups[s.id];
+    return !x.solved && x.hints === 0 && x.bank.every((v, i) => v === STOCK[i]);
+  });
+}
+
 function fresh(): SetupState {
   return { bank: STOCK.slice(), solved: false, hints: 0 };
 }

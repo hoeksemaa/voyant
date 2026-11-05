@@ -82,6 +82,9 @@ code { font-family: var(--mono); }
 .foot a { display: inline-flex; align-items: baseline; gap: 2px; font-weight: 600; color: var(--ink); text-decoration: none; }
 .foot a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .foot .ext { font-size: 11px; transition: transform 0.15s; }
+.foot-btn { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+.foot-btn:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.foot-btn:disabled { color: var(--faint); cursor: default; }
 .foot a:hover .ext { transform: translate(1px, -1px); }
 
 /* ---------- Home ---------- */
