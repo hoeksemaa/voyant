@@ -60,9 +60,11 @@ export class ChipView {
   private axis = new THREE.Vector3();
   private tween: { from: THREE.Spherical; z0: number; t0: number; ms: number } | null = null; // resetView
   private zoom = 1; // camera distance / fitDistance(): a pinch or scroll in the pin view changes it
+  private awake = false; // render every frame (an overlay animates: the pin view's signals)
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private v = new THREE.Vector3();
+  private w = new THREE.Vector3();
   private alive = true;
   private ro: ResizeObserver;
 
@@ -122,6 +124,12 @@ export class ChipView {
   /** Called after each frame: overlays (wires, curves) follow the chip. */
   onFrame(fn: () => void): void {
     this.listeners.push(fn);
+  }
+
+  /** On: render (and call onFrame) every frame, for an overlay that moves on its own. */
+  setAwake(on: boolean): void {
+    this.awake = on;
+    if (on) this.requestRender();
   }
 
   setPins(on: boolean): void {
@@ -298,6 +306,18 @@ export class ChipView {
     return true;
   }
 
+  /**
+   * Whether a point on the board (chip frame, mm, as in pin-layout) is in view: the camera is
+   * above the board (the pin labels face up and are culled from below), and the chip body does
+   * not hide the point.
+   */
+  sees(local: THREE.Vector3): boolean {
+    const g = this.chipGroup;
+    g.updateWorldMatrix(true, false);
+    if (g.worldToLocal(this.w.copy(this.camera.position)).y <= local.y) return false;
+    return !this.hidden(this.w.copy(local).applyMatrix4(g.matrixWorld));
+  }
+
   private hidden(p: THREE.Vector3): boolean {
     const dir = this.v.copy(p).sub(this.camera.position);
     const dist = dir.length();
@@ -325,6 +345,7 @@ export class ChipView {
       if (this.pinView) more = this.pinView.tick(dt) || more;
       if (this.opts.spin) more = this.spinStep(dt) || more;
       if (this.tween) more = this.tweenStep(now) || more;
+      if (this.awake) more = true;
       if (this.controls) this.controls.update();
       this.camera.updateMatrixWorld();
       this.renderer.render(this.scene, this.camera);
