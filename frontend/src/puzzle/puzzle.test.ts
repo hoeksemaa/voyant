@@ -346,3 +346,29 @@ describe("hints", () => {
     }
   });
 });
+
+// The main facts in docs/solutions.md. If one of these fails, update that doc.
+describe("solutions doc", () => {
+  test("EMG: of the 32 editable CONFIG1 values, only DR 011 (93 B3 D3 F3) passes", () => {
+    const pass: number[] = [];
+    for (let hi = 0; hi < 4; hi++)
+      for (let dr = 0; dr < 8; dr++) {
+        const v = 0x90 | (hi << 5) | dr;
+        if (run(EMG, withRegs(STOCK, { CONFIG1: v })).pass) pass.push(v);
+      }
+    expect(pass).toEqual([0x93, 0xb3, 0xd3, 0xf3]);
+  });
+
+  test("EOG: gain x1-x12 on both channels passes; x24 and one channel alone fail", () => {
+    for (let g = 0; g <= 5; g++) expect(run(EOG, withRegs(STOCK, chs(g << 4, [1, 2]))).pass, `GAIN ${g}`).toBe(true);
+    expect(run(EOG, withRegs(STOCK, chs(0x60, [1, 2]))).pass).toBe(false);
+    expect(run(EOG, withRegs(STOCK, { CH1SET: 0x50 })).pass).toBe(false);
+  });
+
+  test("EEG: passes when BIAS_SENSP + BIAS_SENSN have 6+ bits in total", () => {
+    expect(run(EEG, withRegs(STOCK, { BIAS_SENSN: 0xff })).pass, "SENSN FF").toBe(true);
+    expect(run(EEG, withRegs(STOCK, { BIAS_SENSP: 0x1f })).pass, "SENSP 1F (6)").toBe(true);
+    expect(run(EEG, withRegs(STOCK, { BIAS_SENSN: 0x1f })).pass, "SENSN 1F (6)").toBe(true);
+    expect(run(EEG, withRegs(STOCK, { BIAS_SENSP: 0x0f })).pass, "SENSP 0F (5)").toBe(false);
+  });
+});
