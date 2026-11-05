@@ -275,7 +275,6 @@ function openHome(): void {
   offPlayhead = null;
   levelEl.hidden = true;
   document.body.dataset.screen = "home";
-  document.title = "ADS1299"; // the tab only; the page heading keeps the full question
   for (const s of SETUPS) home.setSolved(s.id, state.setups[s.id].solved);
   paintResetLevels();
   home.show();
@@ -291,7 +290,6 @@ function openLevel(id: SetupId): void {
   save(state);
   levelEl.hidden = false;
   document.body.dataset.screen = "level";
-  document.title = `${setup.name} · ADS1299`;
   window.scrollTo(0, 0);
 
   $(".lv-num").textContent = String(setup.level.n);
