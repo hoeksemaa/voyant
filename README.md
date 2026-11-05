@@ -30,6 +30,7 @@ You can edit CONFIG1, CH1SET–CH8SET, BIAS_SENSP, BIAS_SENSN, and CONFIG3. One 
 - `frontend/public/datasheet/`: clips from the TI datasheet.
 - `backend/`: an older Python model of the chip and the Brain Pong firmware.
 - `reference/`: the datasheet and the board schematics.
+- `docs/solutions.md`: the answers for each level, with every passing value (spoilers).
 
 ## Run it
 
