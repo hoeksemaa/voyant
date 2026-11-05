@@ -47,6 +47,6 @@ export const HINTS: Record<SetupId, LevelHints> = {
     marks: [{ reg: "BIAS_SENSP", field: "*" }],
     mark: "Change BIAS_SENSP: which positive inputs go into the bias drive.",
     answer: { BIAS_SENSP: 0xff },
-    why: "BIAS_SENSP = 0xFF: all 8 scalp electrodes in the bias average. The loop gain goes up 4.5×, and the hum goes down by the same amount.",
+    why: "BIAS_SENSP = 0xFF: all 8 scalp electrodes in the bias average. The loop gain goes from 14 to 63, and the hum falls about 4.3×.",
   },
 };
