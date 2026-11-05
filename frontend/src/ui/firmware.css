@@ -382,3 +382,10 @@
 @media (prefers-reduced-motion: reduce) {
   .fw *, .fw-tip { animation: none !important; transition: none !important; }
 }
+
+/* Hint 2: the bits to change. The line gets an orange edge; its bits, an orange box. */
+.fw-reg.fw-mark { box-shadow: inset 3px 0 0 var(--fw-orange); }
+.fw-b.fw-mark { border-radius: 2px; background: var(--fw-orange-hover); color: var(--fw-orange-text); font-weight: 700; animation: fw-hint 1.6s ease-out 2; }
+.fw-bit.fw-mark { box-shadow: 0 0 0 2px var(--fw-orange); }
+@keyframes fw-hint { 0%, 100% { background: var(--fw-orange-hover); } 40% { background: #ffc79e; } }
+@media (prefers-reduced-motion: reduce) { .fw-b.fw-mark { animation: none; } }

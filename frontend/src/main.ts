@@ -1,5 +1,6 @@
 import { bodyFor } from "./puzzle/body";
-import { STOCK } from "./puzzle/registers";
+import { HINTS } from "./puzzle/hints";
+import { STOCK, withRegs } from "./puzzle/registers";
 import { SETUPS } from "./puzzle/setups";
 import type { MatchResult, RegisterDef, Setup, SetupId, SimResult } from "./puzzle/types";
 import { AnimView } from "./ui/anim";
@@ -17,7 +18,8 @@ import "./style.css";
 // The register puzzle as a phone game: a home screen with three levels (EMG, EOG, EEG), and one
 // screen per level. Each level starts from Cerelog stock V2 firmware; edit the registers until
 // the chip's output matches the target. Tools open as full-screen sheets; Pins grows the level's
-// own chip to fill the screen.
+// own chip to fill the screen. Hint gives three hints per level: the datasheet, the bits to
+// change, then the answer.
 
 const state = load();
 const byId = (id: SetupId): Setup => SETUPS.find((s) => s.id === id)!;
@@ -101,6 +103,77 @@ const animSheet = new Sheet({
 animSheet.root.classList.add("sheet-anim");
 animSheet.body.append(anim.el);
 
+// Hints: three steps per level (puzzle/hints.ts). Each opens the tool that it points at, over the
+// Hints sheet, so Done comes back to the list.
+const hintSheet = new Sheet({ title: "Hints" });
+hintSheet.root.classList.add("sheet-hint");
+const hintList = document.createElement("ol");
+hintList.className = "hints";
+const hintLead = document.createElement("p");
+hintLead.className = "hints-lead";
+hintLead.textContent = "Each hint is a bigger step than the last. Hint 3 shows the answer.";
+hintSheet.body.append(hintLead, hintList);
+const HINT_TITLES = ["Read the datasheet", "See which bits to change", "Show the answer"];
+
+function renderHints(): void {
+  if (!setup) return;
+  const h = HINTS[setup.id];
+  const shown = state.setups[setup.id].hints;
+  const text = [h.read, h.mark, h.why];
+  hintList.replaceChildren(
+    ...HINT_TITLES.map((title, i) => {
+      const k = i + 1;
+      const li = document.createElement("li");
+      li.className = `hint-step ${k <= shown ? "done" : k === shown + 1 ? "next" : "later"}`;
+      const n = document.createElement("span");
+      n.className = "hint-n";
+      n.textContent = String(k);
+      const body = document.createElement("div");
+      body.className = "hint-body";
+      const b = document.createElement("b");
+      b.textContent = title;
+      body.append(b);
+      if (k <= shown) {
+        const p = document.createElement("p");
+        p.textContent = text[i];
+        body.append(p);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `btn${k === shown + 1 ? " btn-primary" : ""}`;
+      btn.textContent = k <= shown ? (k === 1 ? "Open" : k === 2 ? "Open" : "Show again") : "Show";
+      btn.disabled = k > shown + 1;
+      btn.addEventListener("click", () => showHint(k));
+      li.append(n, body, btn);
+      return li;
+    }),
+  );
+}
+
+function showHint(k: number): void {
+  if (!setup) return;
+  const h = HINTS[setup.id];
+  const st = state.setups[setup.id];
+  if (k > st.hints + 1) return;
+  st.hints = Math.max(st.hints, k);
+  save(state);
+  renderHints();
+  if (k === 1) {
+    datasheet.show(h.clip);
+    dsSheet.open();
+    return;
+  }
+  editor.setHint(h.marks);
+  if (k === 3) {
+    st.bank = withRegs(STOCK, h.answer); // the answer on stock firmware: the change marks show it
+    save(state);
+    editor.setBank(bank(), STOCK);
+    run();
+  }
+  fwSheet.open();
+  editor.focus(h.marks[0].reg);
+}
+
 // ---- toolbar ----
 const fwButton = $<HTMLButtonElement>('.toolbar [data-act="firmware"]');
 const pinsButton = $<HTMLButtonElement>('.toolbar [data-act="pins"]');
@@ -116,6 +189,7 @@ const actions: Record<string, () => void> = {
   datasheet: () => dsSheet.toggle(),
   firmware: () => fwSheet.toggle(),
   anim: () => animSheet.toggle(),
+  hint: () => hintSheet.toggle(),
 };
 for (const b of document.querySelectorAll<HTMLButtonElement>(".toolbar [data-act]")) {
   b.addEventListener("click", () => actions[b.dataset.act!]());
@@ -131,7 +205,7 @@ window.addEventListener("keydown", (e) => {
   }
   const t = e.target as HTMLElement;
   if (t.closest("input, textarea, select, [contenteditable]")) return;
-  const key = { h: "home", p: "pins", d: "datasheet", f: "firmware", a: "anim" }[e.key.toLowerCase()];
+  const key = { h: "home", p: "pins", d: "datasheet", f: "firmware", a: "anim", i: "hint" }[e.key.toLowerCase()];
   if (key && !(key !== "home" && document.querySelector(".win"))) {
     e.preventDefault();
     actions[key]();
@@ -206,7 +280,9 @@ function openLevel(id: SetupId): void {
   anim.setSetup(setup, bodyFor(setup).marks, target.analog);
   animStale = true;
   editor.setUnused(unusedRegs(setup));
+  editor.setHint(state.setups[id].hints >= 2 ? HINTS[id].marks : null);
   editor.setBank(bank(), STOCK);
+  renderHints();
   run();
   offPlayhead?.();
   offPlayhead = clock.on((t) => level.setTime(t));

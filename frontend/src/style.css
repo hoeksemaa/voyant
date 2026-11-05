@@ -153,10 +153,10 @@ code { font-family: var(--mono); }
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
   margin: 0 -16px;
-  padding: 10px 12px 10px;
+  padding: 10px 10px 10px;
   background: rgba(244, 241, 232, 0.88);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -167,10 +167,20 @@ code { font-family: var(--mono); }
   align-items: center;
   gap: 2px;
   min-width: 0;
-  padding: 7px 2px 6px;
+  padding: 7px 1px 6px;
   border-radius: 13px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Six labels in a phone row: smaller type on narrow phones, so no label is cut. */
+@media (max-width: 389px) {
+  .toolbar { gap: 4px; padding: 8px 8px; }
+  .toolbar button { font-size: 10px; letter-spacing: -0.02em; }
+}
+@media (max-width: 340px) {
+  .toolbar { gap: 3px; padding: 8px 6px; }
+  .toolbar button { padding: 7px 0 6px; font-size: 9.5px; letter-spacing: -0.035em; }
 }
 .toolbar svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .toolbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -727,3 +737,17 @@ html.pins-open .wires { opacity: 0; }
   .sheet-panel, .win-card { transition: none; }
 }
 .sheet-fw .fw-title { visibility: hidden; } /* the sheet head already says Firmware */
+
+/* ---------- Hints ---------- */
+.sheet-hint .sheet-body { padding: 14px 16px calc(20px + env(safe-area-inset-bottom)); }
+.hints-lead { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+.hints { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.hint-step { display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.hint-step.later { opacity: 0.55; }
+.hint-n { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(22, 24, 28, 0.3); font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.hint-step.done .hint-n { border-color: var(--orange); background: var(--orange); color: #fff; }
+.hint-body { flex: 1; min-width: 0; padding-top: 3px; }
+.hint-body b { font-size: 15px; }
+.hint-body p { margin: 6px 0 0; font-size: 14px; line-height: 1.42; color: var(--ink); }
+.hint-step .btn { flex: none; padding: 8px 12px; font-size: 13.5px; }
+.hint-step .btn:disabled { cursor: default; opacity: 0.6; }

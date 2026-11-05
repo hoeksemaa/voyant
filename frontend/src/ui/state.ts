@@ -2,13 +2,15 @@ import { STOCK } from "../puzzle/registers";
 import { SETUPS } from "../puzzle/setups";
 import type { Bank, SetupId } from "../puzzle/types";
 
-// The puzzle state in localStorage: the open setup, and each setup's firmware and solved mark.
+// The puzzle state in localStorage: the open setup, and each setup's firmware, solved mark, and
+// how many hints it has shown (0–3).
 
 const KEY = "ads1299-puzzle-v1";
 
 export interface SetupState {
   bank: Bank;
   solved: boolean;
+  hints: number; // 0–3: the hints shown so far
 }
 
 export interface State {
@@ -32,7 +34,10 @@ export function load(): State {
       if (isId(saved.current)) state.current = saved.current;
       for (const s of SETUPS) {
         const x = saved.setups?.[s.id];
-        if (x && isBank(x.bank)) state.setups[s.id] = { bank: x.bank, solved: x.solved === true };
+        if (x && isBank(x.bank)) {
+          const hints = Number.isInteger(x.hints) ? Math.min(3, Math.max(0, x.hints)) : 0;
+          state.setups[s.id] = { bank: x.bank, solved: x.solved === true, hints };
+        }
       }
     }
   } catch {
@@ -44,7 +49,7 @@ export function load(): State {
 }
 
 function fresh(): SetupState {
-  return { bank: STOCK.slice(), solved: false };
+  return { bank: STOCK.slice(), solved: false, hints: 0 };
 }
 
 export function save(state: State): void {

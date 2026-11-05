@@ -3,6 +3,9 @@ import { GAINS, RATES, SETUPS, STOCK, VREF, match, simulate, targetFor, usedChan
 import type { Bank, MatchResult, Setup, SimResult } from "./index";
 import { modelOptions } from "./model";
 import { NOISE_UVRMS } from "./noise";
+import { HINTS } from "./hints";
+import { CLIPS } from "./clips";
+import { byName } from "./registers";
 
 const byId = (id: string): Setup => SETUPS.find((s) => s.id === id)!;
 const EEG = byId("eeg");
@@ -313,5 +316,33 @@ describe("model", () => {
     // ×12 fits: no clip.
     const t = targetFor(EOG);
     expect(t.out[0].clipped || t.out[1].clipped).toBe(false);
+  });
+});
+
+describe("hints", () => {
+  test("each level's hint 3 answer (on STOCK) solves it; STOCK does not", () => {
+    for (const s of SETUPS) {
+      const h = HINTS[s.id];
+      expect(run(s, STOCK).pass, `${s.id} STOCK`).toBe(false);
+      expect(run(s, withRegs(STOCK, h.answer)).pass, `${s.id} answer`).toBe(true);
+    }
+  });
+
+  test("hint marks name real editable fields, on the registers that the answer changes", () => {
+    for (const s of SETUPS) {
+      const h = HINTS[s.id];
+      expect(CLIPS.some((c) => c.id === h.clip), `${s.id} clip`).toBe(true);
+      for (const m of h.marks) {
+        const def = byName(m.reg);
+        expect(def.group, `${m.reg} editable`).not.toBeNull();
+        if (m.field !== "*") expect(def.fields.some((f) => f.name === m.field), `${m.reg} ${m.field}`).toBe(true);
+        expect(m.reg in h.answer, `${s.id}: ${m.reg} in the answer`).toBe(true);
+      }
+      // The answer changes only the marked registers, and each marked register changes.
+      for (const reg of Object.keys(h.answer)) {
+        expect(h.marks.some((m) => m.reg === reg), `${s.id}: ${reg} marked`).toBe(true);
+        expect(h.answer[reg], `${s.id}: ${reg} changes`).not.toBe(STOCK[byName(reg).addr]);
+      }
+    }
   });
 });
