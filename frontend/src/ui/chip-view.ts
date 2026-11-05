@@ -64,6 +64,7 @@ export class ChipView {
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private v = new THREE.Vector3();
+  private w = new THREE.Vector3();
   private alive = true;
   private ro: ResizeObserver;
 
@@ -303,6 +304,18 @@ export class ChipView {
     const k = Math.min(1, Math.max(0, (this.idle - 1) / 2.5));
     if (k > 0) this.turn(UP, k * DRIFT * dt);
     return true;
+  }
+
+  /**
+   * Whether a point on the board (chip frame, mm, as in pin-layout) is in view: the camera is
+   * above the board (the pin labels face up and are culled from below), and the chip body does
+   * not hide the point.
+   */
+  sees(local: THREE.Vector3): boolean {
+    const g = this.chipGroup;
+    g.updateWorldMatrix(true, false);
+    if (g.worldToLocal(this.w.copy(this.camera.position)).y <= local.y) return false;
+    return !this.hidden(this.w.copy(local).applyMatrix4(g.matrixWorld));
   }
 
   private hidden(p: THREE.Vector3): boolean {

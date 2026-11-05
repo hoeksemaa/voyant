@@ -18,7 +18,9 @@ import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_COLOR, cha
 const NS = "http://www.w3.org/2000/svg";
 
 const FIT_SMALL = { width: 31, height: 12 }; // mm of chip in the slot: room for the lanes at the sides
-const FIT_BIG = { width: 17.5, height: 18.5 }; // mm of chip on the full screen: the chip and its pin labels
+// mm of chip on the full screen: the chip, its pin labels (±8.2 mm), and on a phone the start of
+// the side signal lines (SRB1, BIASOUT) past the labels.
+const FIT_BIG = { width: 19.5, height: 18.5 };
 const GROW_MS = 420;
 const LANE = 6; // px between lanes
 const GAP = 9; // px from the chip's pin feet to the first lane
@@ -193,6 +195,7 @@ export class LevelView {
         chip.setAwake(!still); // the balls move on every frame
       } else {
         this.rect = null;
+        this.sig.width = 0; // clear (and free) the overlay: it shows only while the box is big
         this.box.classList.remove("big");
         this.box.removeAttribute("style");
         html.classList.remove("pins-open");
@@ -232,7 +235,9 @@ export class LevelView {
     ctx.lineCap = "round";
     for (const wire of this.wires) {
       const d = labelEnd(wire.pin) + SIG_GAP;
-      chip.project(pinPoint(wire.pin, d, SIG_Y), a);
+      const start = pinPoint(wire.pin, d, SIG_Y);
+      if (!chip.sees(start)) continue; // behind the chip body, or the camera is under the board
+      chip.project(start, a);
       chip.project(pinPoint(wire.pin, d + 1, SIG_Y), b);
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len < 0.5) continue; // the line points at the camera
