@@ -434,7 +434,7 @@ html.pins-open .wires { opacity: 0; }
 .key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 2px 0; font-size: 11.5px; color: var(--muted); }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key i { width: 14px; height: 3px; border-radius: 2px; }
-.k-out { background: linear-gradient(90deg, #4dabf7, #ffd43b, #f783ac); }
+.k-out { background: linear-gradient(90deg, #4dabf7, #ffa94d, #f783ac); }
 .k-target { background: #aab1bb; }
 
 /* Banner: global flags, or "Solved". */
@@ -641,24 +641,28 @@ html.pins-open .wires { opacity: 0; }
 .anim-time { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
 .anim-art { position: relative; margin: 10px 0 12px; border-radius: var(--r); background: rgba(235, 230, 217, 0.5); }
 .anim-art svg { display: block; width: 100%; height: auto; }
-.anim[data-body="arm"] .anim-art svg { aspect-ratio: 258 / 120; }
-.anim[data-body="face"] .anim-art svg, .anim[data-body="head"] .anim-art svg { max-height: 300px; aspect-ratio: 132 / 104; }
+.anim[data-body="face"] .anim-art svg, .anim[data-body="head"] .anim-art svg { max-height: 320px; } /* anim.ts sets the aspect ratio from the view box */
 .anim-art svg * { vector-effect: non-scaling-stroke; }
 .anim-art .skin { fill: #fffaf0; stroke: none; }
-.anim-art .line { fill: none; stroke: #6b7280; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.anim-art .line, .anim-eyes .line { fill: none; stroke: #6b7280; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .anim-art .fine { fill: none; stroke: rgba(0, 0, 0, 0.3); stroke-width: 1.2; stroke-linecap: round; }
 .anim-art .guide { fill: none; stroke: rgba(0, 0, 0, 0.14); stroke-dasharray: 3 4; }
-.anim-art .white { fill: #fff; stroke: none; }
-.anim-art .iris { fill: #3f4652; }
-.anim-art .lid { fill: #f1e6d4; }
+.anim-art .white, .anim-eyes .white { fill: #fff; stroke: none; }
+.anim-art .iris, .anim-eyes .iris { fill: #3f4652; }
+.anim-art .lid, .anim-eyes .lid { fill: #f1e6d4; }
 .anim-art .belly { opacity: 0.05; }
 .anim-art .knuckles { opacity: 0; }
 .anim-art .glow { opacity: 0.1; }
 .anim-art .el-mark { stroke: #fff; stroke-width: 1.6; }
 .anim-art .el-ring { fill: #fff; stroke-width: 2.4; }
+.anim-art .lead-wire { fill: none; stroke-width: 1.3; stroke-linecap: round; }
+.anim-art .lead-dots { fill: none; stroke-width: 2.8; stroke-linecap: round; }
+.anim-art .lead-port rect { stroke: none; }
+.anim-art .lead-ref rect { fill: #fff; stroke-width: 1.4; }
+.anim-art .lead-port text { font: 700 5.4px var(--mono); fill: #fff; letter-spacing: 0.02em; }
 .anim-art .el-label { font: 600 6px Inter, sans-serif; fill: var(--ink); paint-order: stroke; stroke: rgba(255, 250, 240, 0.9); stroke-width: 2.5px; }
 .anim[data-body="arm"] .el-label { font-size: 8.5px; }
-.anim-eyes { position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); font-size: 12px; font-weight: 600; }
+.anim-eyes { display: flex; align-items: center; gap: 7px; margin-left: auto; padding: 5px 10px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); font-size: 12px; font-weight: 600; }
 .anim-eyes .eyes { display: flex; gap: 3px; }
 .anim-eyes svg { width: 22px; height: 13px; }
 .anim-eyes .line { stroke-width: 1.3; }

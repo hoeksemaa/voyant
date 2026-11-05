@@ -1,7 +1,8 @@
 import type { Marks } from "../puzzle/body";
 import type { AnalogIn, Electrode, Setup } from "../puzzle/types";
-import { ArmArt } from "./arm";
+import { ArmArt, ELBOW } from "./arm";
 import type { Clock } from "./clock";
+import { LEAD_VIEW, Leads } from "./leads";
 import { fitPhases, phaseStrip, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, type Range, type Screen } from "./traces";
 import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, wires } from "./wiring";
@@ -12,10 +13,9 @@ import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, wires } from "./wiring";
 
 const NS = "http://www.w3.org/2000/svg";
 
-const ART: Record<Setup["body"], { view: string; svg: string }> = {
-  arm: { view: "-14 -30 258 120", svg: "" }, // ArmArt draws it (ui/arm.ts)
+const ART: Record<Setup["body"], { svg: string }> = {
+  arm: { svg: "" }, // ArmArt draws it (ui/arm.ts)
   face: {
-    view: "-16 -2 132 106",
     svg: `
       <path class="line" d="M14.5 40 C2 36, 0 64, 13 67 M85.5 40 C98 36, 100 64, 87 67"/>
       <ellipse class="skin" cx="50" cy="52" rx="36" ry="43"/>
@@ -30,7 +30,6 @@ const ART: Record<Setup["body"], { view: string; svg: string }> = {
       <path class="fine" d="M50 46 L46.5 60 Q50 62 53.5 60 M41 73 Q50 78 59 73"/>`,
   },
   head: {
-    view: "-16 -2 132 104",
     svg: `
       <path class="line" d="M10.5 43 C3 41, 2 61, 10.5 59 M89.5 43 C97 41, 98 61, 89.5 59"/>
       <path class="line" d="M43.5 12.5 L50 4 L56.5 12.5"/>
@@ -46,6 +45,7 @@ interface Mark {
   e: Electrode;
   ch: number | null;
   glow: SVGCircleElement | null;
+  under: SVGCircleElement | null; // arm: a cream disc under the glow, so CH1 blue stays blue over the orange swelling
   label: SVGTextElement;
 }
 
@@ -77,6 +77,8 @@ export class AnimView {
   private ranges: Range[] = [];
   private eyes: HTMLElement | null = null;
   private armArt: ArmArt | null = null;
+  private leads: Leads | null = null;
+  private marksEl = document.createElementNS(NS, "g"); // the electrode marks, over the leads
   private off: (() => void) | null = null;
 
   constructor(private clock: Clock) {
@@ -108,13 +110,19 @@ export class AnimView {
     this.marks = marks;
     this.clock.duration = setup.duration;
     this.el.dataset.body = setup.body;
-    const art = ART[setup.body];
-    this.svg.setAttribute("viewBox", art.view);
-    this.svg.innerHTML = art.svg;
+    const view = LEAD_VIEW[setup.body];
+    const [, , vw, vh] = view.split(" ").map(Number);
+    this.svg.setAttribute("viewBox", view);
+    this.svg.style.aspectRatio = `${vw} / ${vh}`;
+    this.svg.innerHTML = ART[setup.body].svg;
     const big = setup.body === "arm";
     this.armArt = big ? new ArmArt(this.svg) : null;
-    const host = this.armArt?.forearm ?? this.svg; // on the arm, the marks ride the forearm
-    this.pins = setup.electrodes.map((e) => this.mark(e, big, host));
+    // Body, then the lead wires and ports, then the electrode marks on top.
+    this.leads = new Leads(setup, (e) => this.rest(e));
+    this.marksEl.removeAttribute("transform");
+    this.marksEl.replaceChildren();
+    this.svg.append(this.leads.el, this.marksEl);
+    this.pins = setup.electrodes.map((e) => this.mark(e, big));
 
     this.eyes?.remove();
     this.eyes = null;
@@ -122,7 +130,7 @@ export class AnimView {
       this.eyes = document.createElement("div");
       this.eyes.className = "anim-eyes";
       this.eyes.innerHTML = `<span class="eyes">${EYE}${EYE}</span><span class="eyes-text">Eyes open</span>`;
-      this.art.append(this.eyes);
+      this.status.append(this.eyes); // in the status row: the head's ports use the art's corners
     }
     this.setAnalog(analog);
   }
@@ -134,6 +142,13 @@ export class AnimView {
     this.ranges = analog.map((a) => rangeOf(a.uv));
     this.act.clear();
     for (const a of analog) if (a.uv) this.act.set(a.ch, activity(a.uv, a.rate, setup.body));
+    if (setup.body === "head") {
+      // EEG: one scale for all channels, so a channel's glow shows its size against the others
+      // (alpha at the back of the head when the eyes close), not against its own peak.
+      let max = 1e-9;
+      for (const v of this.act.values()) for (const x of v) if (x > max) max = x;
+      for (const v of this.act.values()) for (let j = 0; j < v.length; j++) v[j] = Math.min(1, v[j] / max) ** 0.8;
+    }
     const used = wires(setup).filter((w) => w.p);
     const rh = used.length === 1 ? 120 : used.length === 2 ? 84 : 40;
     this.scope.style.setProperty("--rh", `${rh}px`);
@@ -190,16 +205,40 @@ export class AnimView {
     this.clock.seek(f * this.setup.duration);
   }
 
-  private mark(e: Electrode, big: boolean, host: Element): Mark {
-    const box = this.setup!.body === "arm" ? [240, 100] : [100, 100];
-    const x = e.x * box[0];
-    const y = e.y * box[1];
+  /** An electrode's place in the art at rest (view box units). */
+  private rest(e: Electrode): [number, number] {
+    const w = this.setup!.body === "arm" ? 240 : 100;
+    return [e.x * w, e.y * 100];
+  }
+
+  /** An electrode's place now: on the arm, it rides the forearm as it turns at the elbow. */
+  private now(e: Electrode): [number, number] {
+    const [x, y] = this.rest(e);
+    const a = this.armArt ? (this.armArt.angle * Math.PI) / 180 : 0;
+    if (!a) return [x, y];
+    const dx = x - ELBOW[0];
+    const dy = y - ELBOW[1];
+    return [ELBOW[0] + dx * Math.cos(a) - dy * Math.sin(a), ELBOW[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+  }
+
+  private mark(e: Electrode, big: boolean): Mark {
+    const [x, y] = this.rest(e);
     const r = big ? 4.6 : 3.4;
     const m = /^IN(\d)P$/.exec(e.pin);
     const ch = m ? Number(m[1]) : null;
     const color = ch ? CH_INK[ch - 1] : e.pin === "BIASOUT" ? BIAS_COLOR : REF_COLOR;
     const g = document.createElementNS(NS, "g");
     let glow: SVGCircleElement | null = null;
+    let under: SVGCircleElement | null = null;
+    if (ch && big) {
+      under = document.createElementNS(NS, "circle");
+      under.setAttribute("cx", String(x));
+      under.setAttribute("cy", String(y));
+      under.setAttribute("r", String(r));
+      under.setAttribute("fill", "#fffaf0");
+      under.style.opacity = "0";
+      g.append(under);
+    }
     if (ch) {
       glow = document.createElementNS(NS, "circle");
       glow.setAttribute("class", "glow");
@@ -232,15 +271,28 @@ export class AnimView {
     g.append(dot);
     const label = document.createElementNS(NS, "text");
     label.setAttribute("class", "el-label");
-    const below = this.setup!.body === "arm";
+    // Out of the lead's way: the arm's leads go down (label above), the head's go to the side
+    // (label below), the face's go down (label to the side).
+    const body = this.setup!.body;
     const side = e.x < 0.5 ? -1 : 1;
-    label.setAttribute("x", String(below ? x : x + side * (r + 2.5)));
-    label.setAttribute("y", String(below ? y + r + 9 : y + 1.6));
-    label.setAttribute("text-anchor", below ? "middle" : side < 0 ? "end" : "start");
+    if (body === "arm" && e.pin === "BIASOUT") {
+      // The wrist: left of the pad, inside the forearm (above it, the thumb and fist move).
+      label.setAttribute("x", String(x - r - 4));
+      label.setAttribute("y", String(y + 3));
+      label.setAttribute("text-anchor", "end");
+    } else if (body === "face") {
+      label.setAttribute("x", String(x + side * (r + 2.5)));
+      label.setAttribute("y", String(y + 1.6));
+      label.setAttribute("text-anchor", side < 0 ? "end" : "start");
+    } else {
+      label.setAttribute("x", String(x));
+      label.setAttribute("y", String(body === "arm" ? y - r - 3.2 : y + r + 6.2));
+      label.setAttribute("text-anchor", "middle");
+    }
     label.textContent = e.id;
     g.append(label);
-    host.append(g);
-    return { e, ch, glow, label };
+    this.marksEl.append(g);
+    return { e, ch, glow, under, label };
   }
 
   private frame(t: number): void {
@@ -261,9 +313,17 @@ export class AnimView {
       if (!p.glow || !p.ch) continue;
       const a = sample(this.act.get(p.ch), t);
       const r0 = setup.body === "arm" ? 4.6 : 3.4;
-      p.glow.setAttribute("r", (r0 + (setup.body === "arm" ? 11 : 7) * a).toFixed(2));
-      p.glow.style.opacity = (0.08 + 0.42 * a).toFixed(3);
+      const r = (r0 + (setup.body === "arm" ? 11 : setup.body === "head" ? 5 : 7) * a).toFixed(2);
+      p.glow.setAttribute("r", r);
+      p.glow.style.opacity = (0.08 + (setup.body === "head" ? 0.32 : 0.42) * a).toFixed(3);
+      if (p.under) {
+        p.under.setAttribute("r", r);
+        p.under.style.opacity = (0.8 * a).toFixed(3);
+      }
     }
+
+    // The leads: each electrode's wire to its port on the chip.
+    this.leads?.draw(t, (e) => this.now(e), (ch) => sample(this.act.get(ch), t));
 
     // The traces: bright up to now, faint after.
     for (const lane of this.lanes) this.lane(lane, t);
@@ -280,6 +340,7 @@ export class AnimView {
     const grip = Math.max(0, (c - 0.6) / 0.4);
     const shake = grip * (0.45 * Math.sin(2 * Math.PI * 9.5 * t) + 0.25 * Math.sin(2 * Math.PI * 13.1 * t + 1));
     art.pose(c, shake);
+    this.marksEl.setAttribute("transform", `rotate(${art.angle.toFixed(2)} ${ELBOW[0]} ${ELBOW[1]})`);
     // The labels stay level while the forearm turns.
     for (const p of this.pins) {
       const x = p.label.getAttribute("x")!;
@@ -368,6 +429,8 @@ const ACT_RATE = 50; // Hz
 /**
  * How active a channel is over time, 0–1. EOG: distance from the trace's middle (gaze).
  * EEG and EMG: the rms of the trace minus its slow level (alpha, blinks, muscle bursts).
+ * EEG also drops the mains hum first, and returns raw µV rms: setAnalog scales its channels
+ * together.
  */
 function activity(uv: Float32Array, rate: number, body: Setup["body"]): Float32Array {
   const n = Math.floor((uv.length / rate) * ACT_RATE);
@@ -395,19 +458,34 @@ function activity(uv: Float32Array, rate: number, body: Setup["body"]): Float32A
     const b = Math.min(uv.length, i + W + 1);
     hp[i] = uv[i] - (c[b] - c[a]) / (b - a);
   }
-  const R = Math.round(0.03 * rate);
+  let x = hp;
+  if (body === "head") {
+    // A boxcar three mains periods long nulls 60, 120, and 180 Hz and keeps most of the alpha
+    // band (10 Hz at about 0.64), so the glow shows brain rhythm, not hum.
+    const L = Math.max(1, Math.round((rate * 3) / 60));
+    const cs = new Float64Array(hp.length + 1);
+    for (let i = 0; i < hp.length; i++) cs[i + 1] = cs[i] + hp[i];
+    x = new Float32Array(hp.length);
+    for (let i = 0; i < hp.length; i++) {
+      const a = Math.max(0, i - (L >> 1));
+      const b = Math.min(hp.length, a + L);
+      x[i] = (cs[b] - cs[a]) / (b - a);
+    }
+  }
+  const R = Math.round((body === "head" ? 0.06 : 0.03) * rate);
   let max = 1e-9;
   for (let j = 0; j < n; j++) {
     const m = Math.floor(j * per);
     let ss = 0;
     let k = 0;
     for (let i = Math.max(0, m - R); i < Math.min(uv.length, m + R); i++) {
-      ss += hp[i] * hp[i];
+      ss += x[i] * x[i];
       k++;
     }
     out[j] = Math.sqrt(ss / Math.max(1, k));
     if (out[j] > max) max = out[j];
   }
+  if (body === "head") return out;
   for (let j = 0; j < n; j++) out[j] = Math.min(1, out[j] / max) ** 0.8;
   return out;
 }
