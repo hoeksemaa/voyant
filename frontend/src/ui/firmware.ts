@@ -4,7 +4,9 @@ import { REGISTERS, STOCK, field, rejectReason } from "../puzzle/registers";
 
 // Firmware editor: the register table of Cerelog stock V2, shown as the real C code.
 // The user toggles bit digits, or types a byte into the field panel. Each accepted edit
-// goes to onChange as a new bank. Locked registers show, but do not change.
+// goes to onChange as a new bank. Locked registers show, but do not change. A level can also
+// mark registers as not used (setUnused: the CHnSET of a channel with no electrode): they show
+// grey, like a locked register, and do not change.
 
 export interface FirmwareOptions {
   onChange: (bank: Bank) => void;
@@ -280,6 +282,7 @@ export class FirmwareEditor {
   private hl: HTMLElement[] = [];
   private gridBits: { b: number; btn: HTMLElement; d: HTMLElement }[] = [];
   private gridRows: { f: FieldDef; val: HTMLElement }[] = [];
+  private unused = new Map<number, string>(); // addr → why the level does not use it
 
   constructor(
     root: HTMLElement,
@@ -321,6 +324,35 @@ export class FirmwareEditor {
     this.bank = bank.slice();
     this.start = start.slice();
     this.render();
+  }
+
+  /**
+   * Registers that this level does not use: name → the reason. They show grey and do not
+   * change, like a locked register. null: every editable register is in use.
+   */
+  setUnused(regs: Map<string, string> | null): void {
+    this.unused = new Map([...(regs ?? [])].map(([name, why]) => [REGISTERS.find((r) => r.name === name)!.addr, why]));
+    for (const line of this.lines.values()) {
+      const ed = this.editable(line.def);
+      line.row.classList.toggle("fw-ed", ed);
+      line.row.classList.toggle("fw-lk", !ed);
+      line.row.classList.toggle("fw-na", this.unused.has(line.def.addr));
+      if (ed) delete line.row.dataset.tip;
+      else line.row.dataset.tip = "line";
+      line.shown = -1; // rebuild the digits: their classes depend on the lock
+    }
+    delete this.grid.dataset.addr; // and the field panel
+    this.render();
+  }
+
+  /** A register that the user can change here: editable in the puzzle, and used by this level. */
+  private editable(def: RegisterDef): boolean {
+    return !!def.group && !this.unused.has(def.addr);
+  }
+
+  /** Why a bit does not change: the level does not use the register, or the bit is locked. */
+  private lockWhy(def: RegisterDef, b: number): string | null {
+    return this.unused.get(def.addr) ?? lockReason(def, b);
   }
 
   /** Select a register by name and scroll its line into view. This does not call onSelect. */
@@ -454,7 +486,9 @@ export class FirmwareEditor {
     let tail = "";
     let full = head;
     let room = true;
-    for (const part of meaning(line.def, v)) {
+    const parts = meaning(line.def, v);
+    if (this.unused.has(line.def.addr)) parts.unshift("not used here");
+    for (const part of parts) {
       full += ` · ${part}`;
       if (room && head.length + tail.length + part.length + 3 <= this.cols) tail += ` · ${part}`;
       else room = false;
@@ -515,7 +549,7 @@ export class FirmwareEditor {
     for (let b = 7; b >= 0; b--) {
       const d = make("span", "fw-b");
       d.dataset.bit = String(b);
-      if (line.def.group) {
+      if (this.editable(line.def)) {
         d.dataset.tip = "bit";
         d.classList.add(lockReason(line.def, b) ? "rsv" : "ed");
       }
@@ -539,14 +573,14 @@ export class FirmwareEditor {
     const v = this.bank[addr];
     const s = this.start[addr];
     this.insp.dataset.addr = String(addr);
-    this.insp.classList.toggle("locked", !def.group);
+    this.insp.classList.toggle("locked", !this.editable(def));
     this.iname.textContent = def.name;
     this.iaddr.textContent = `${hex2(addr)}h`;
-    this.hex.disabled = !def.group;
+    this.hex.disabled = !this.editable(def);
     if (document.activeElement !== this.hex) this.showHex();
-    this.revert.hidden = v === s || !def.group;
+    this.revert.hidden = v === s || !this.editable(def);
     this.revert.textContent = `↺ ${hex2(s)}`;
-    if (!this.msg.classList.contains("say")) this.msg.textContent = about(def);
+    if (!this.msg.classList.contains("say")) this.msg.textContent = this.unused.get(addr) ?? about(def);
 
     if (this.grid.dataset.addr !== String(addr)) this.buildGrid(def);
     this.updateGrid(v, s);
@@ -569,7 +603,7 @@ export class FirmwareEditor {
       grp.style.flexGrow = String(f.hi - f.lo + 1);
       grp.dataset.hi = String(f.hi);
       for (let b = f.hi; b >= f.lo; b--) {
-        const btn = make("button", `fw-bit ${lockReason(def, b) || !f.name ? "rsv" : "ed"}`);
+        const btn = make("button", `fw-bit ${this.lockWhy(def, b) || !f.name ? "rsv" : "ed"}`);
         btn.type = "button";
         btn.tabIndex = -1;
         btn.dataset.bit = String(b);
@@ -635,7 +669,7 @@ export class FirmwareEditor {
   private unsay(): void {
     window.clearTimeout(this.msgTimer);
     this.msg.className = "fw-imsg";
-    if (this.sel !== null) this.msg.textContent = about(DEF.get(this.sel)!);
+    if (this.sel !== null) this.msg.textContent = this.unused.get(this.sel) ?? about(DEF.get(this.sel)!);
   }
 
   // ---- edits ----
@@ -670,7 +704,7 @@ export class FirmwareEditor {
 
   private toggle(addr: number, b: number): void {
     const def = DEF.get(addr)!;
-    const why = lockReason(def, b);
+    const why = this.lockWhy(def, b);
     if (why) {
       this.say(why, "info");
       return;
@@ -695,7 +729,9 @@ export class FirmwareEditor {
     const def = DEF.get(this.sel)!;
     const raw = this.hex.value.trim();
     const v = /^[0-9a-f]{1,2}$/i.test(raw) ? parseInt(raw, 16) : NaN;
-    const why = def.group ? rejectReason(def, this.bank[this.sel], v) : (def.note ?? "Locked");
+    const why = this.editable(def)
+      ? rejectReason(def, this.bank[this.sel], v)
+      : (this.unused.get(def.addr) ?? def.note ?? "Locked");
     if (why) {
       this.say(why, "err");
       this.hex.select();
@@ -750,7 +786,7 @@ export class FirmwareEditor {
     const addr = Number(row.dataset.addr);
     this.el.focus({ preventScroll: true });
     const digit = this.compact ? null : t.closest<HTMLElement>(".fw-b");
-    if (digit && DEF.get(addr)!.group) {
+    if (digit && this.editable(DEF.get(addr)!)) {
       if (addr !== this.sel) this.select(addr, true);
       this.toggle(addr, Number(digit.dataset.bit));
       if (digit.classList.contains("rsv")) this.tip.now(digit, this.tipHtml(digit));
@@ -823,7 +859,7 @@ export class FirmwareEditor {
     const def = DEF.get(addr);
     const b = t.dataset.bit !== undefined ? Number(t.dataset.bit) : Number(t.dataset.hi);
     const f = def && fieldAt(def, b);
-    if (!def || !def.group || !f) return;
+    if (!def || !this.editable(def) || !f) return;
     const line = this.lines.get(addr);
     for (let i = f.lo; i <= f.hi; i++) if (line?.digits[i]) this.hl.push(line.digits[i]);
     if (addr === this.sel) {
@@ -838,6 +874,8 @@ export class FirmwareEditor {
   }
 
   private lockedTip(def: RegisterDef): string {
+    const na = this.unused.get(def.addr);
+    if (na) return `<b>${esc(def.name)}</b> · not used here<span class="m">${esc(na)}</span>`;
     return `<b>${esc(def.name)}</b> · locked<span class="m">${esc(def.note ?? "")}</span>`;
   }
 
@@ -853,10 +891,10 @@ export class FirmwareEditor {
         const b = Number(t.dataset.bit);
         const f = fieldAt(def, b);
         if (!f) return null;
-        const why = lockReason(def, b);
+        const why = this.lockWhy(def, b);
         const lead = f.lock === "reserved" ? `Reserved · ${spanText(f)}` : `<b>${esc(f.name)}</b> · ${spanText(f)}`;
         const dec = f.lock === "reserved" ? "" : `<br>${esc(f.decode(field(v, f)))}`;
-        const tail = why ? `<span class="m">${esc(why.slice(why.indexOf("·") + 2))}</span>` : "";
+        const tail = why ? `<span class="m">${esc(why.includes("·") ? why.slice(why.indexOf("·") + 2) : why)}</span>` : "";
         return `${lead}${dec}${tail}`;
       }
       case "line":
@@ -870,7 +908,7 @@ export class FirmwareEditor {
         const line = this.lines.get(addr);
         const cut = t.classList.contains("cut") || t.scrollWidth > t.clientWidth + 1;
         const full = cut && line ? `<code>${esc(line.full)}</code>` : "";
-        if (!def.group) return `${this.lockedTip(def)}${full ? `<span class="m">${full}</span>` : ""}`;
+        if (!this.editable(def)) return `${this.lockedTip(def)}${full ? `<span class="m">${full}</span>` : ""}`;
         return full || null;
       }
     }

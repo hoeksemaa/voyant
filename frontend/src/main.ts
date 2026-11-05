@@ -205,10 +205,21 @@ function openLevel(id: SetupId): void {
   clock.seek(0);
   anim.setSetup(setup, bodyFor(setup).marks, target.analog);
   animStale = true;
+  editor.setUnused(unusedRegs(setup));
   editor.setBank(bank(), STOCK);
   run();
   offPlayhead?.();
   offPlayhead = clock.on((t) => level.setTime(t));
+}
+
+/** The CHnSET of each channel with no electrode: the level does not use it (grey in the firmware). */
+function unusedRegs(s: Setup): Map<string, string> {
+  const used = usedChannels(s);
+  const out = new Map<string, string>();
+  for (let n = 1; n <= 8; n++) {
+    if (!used.includes(n)) out.set(`CH${n}SET`, `Not used in this level: no electrode on IN${n}P.`);
+  }
+  return out;
 }
 
 // ---- simulate, compare, draw ----
