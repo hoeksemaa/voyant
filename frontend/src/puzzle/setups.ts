@@ -20,7 +20,6 @@ export const SETUPS: Setup[] = [
   {
     id: "emg",
     name: "EMG",
-    detail: "3 electrodes on the arm",
     body: "arm",
     montage: "srb1",
     electrodes: [
@@ -55,7 +54,6 @@ export const SETUPS: Setup[] = [
   {
     id: "eog",
     name: "EOG",
-    detail: "2 electrodes beside the eyes",
     body: "face",
     montage: "srb1",
     electrodes: [
@@ -92,7 +90,6 @@ export const SETUPS: Setup[] = [
   {
     id: "eeg",
     name: "EEG",
-    detail: "8 electrodes on the scalp",
     body: "head",
     montage: "srb1",
     electrodes: [
