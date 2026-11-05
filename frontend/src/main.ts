@@ -294,9 +294,6 @@ function openLevel(id: SetupId): void {
 
   $(".lv-num").textContent = String(setup.level.n);
   $(".lv-name").textContent = setup.name;
-  const diff = $(".lv-head .diff");
-  diff.textContent = setup.level.difficulty;
-  diff.className = `diff diff-${setup.level.difficulty.toLowerCase()}`;
   $(".lv-detail").textContent = `${setup.level.what} · ${setup.detail}`;
   fwButton.classList.toggle("nudge", !sessionStorage.getItem("fw-seen"));
 
