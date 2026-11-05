@@ -283,6 +283,7 @@ export class FirmwareEditor {
   private gridBits: { b: number; btn: HTMLElement; d: HTMLElement }[] = [];
   private gridRows: { f: FieldDef; val: HTMLElement }[] = [];
   private unused = new Map<number, string>(); // addr → why the level does not use it
+  private marks = new Map<number, [number, number][]>(); // hint: addr → bit spans [lo, hi] to change
 
   constructor(
     root: HTMLElement,
@@ -331,6 +332,7 @@ export class FirmwareEditor {
    * change, like a locked register. null: every editable register is in use.
    */
   setUnused(regs: Map<string, string> | null): void {
+    this.endUndo(); // a new level: an Undo from the last level must not carry over
     this.unused = new Map([...(regs ?? [])].map(([name, why]) => [REGISTERS.find((r) => r.name === name)!.addr, why]));
     for (const line of this.lines.values()) {
       const ed = this.editable(line.def);
@@ -343,6 +345,25 @@ export class FirmwareEditor {
     }
     delete this.grid.dataset.addr; // and the field panel
     this.render();
+  }
+
+  /**
+   * Hint: mark the bits to change. field: a field name in registers.ts, or "*" for the whole
+   * byte. The register line and its bits get an orange mark. null clears the marks.
+   */
+  setHint(marks: { reg: string; field: string }[] | null): void {
+    this.marks = new Map();
+    for (const m of marks ?? []) {
+      const def = REGISTERS.find((r) => r.name === m.reg);
+      const f = m.field === "*" ? { lo: 0, hi: 7 } : def?.fields.find((x) => x.name === m.field);
+      if (!def || !f) continue;
+      this.marks.set(def.addr, [...(this.marks.get(def.addr) ?? []), [f.lo, f.hi]]);
+    }
+    this.render();
+  }
+
+  private marked(addr: number, b: number): boolean {
+    return !!this.marks.get(addr)?.some(([lo, hi]) => b >= lo && b <= hi);
   }
 
   /** A register that the user can change here: editable in the puzzle, and used by this level. */
@@ -528,8 +549,10 @@ export class FirmwareEditor {
       d.classList.toggle("chg", bit !== bitOf(s, b));
       const f = fieldAt(def, b);
       d.classList.toggle("bad", f?.lock === "reserved" && field(v, f) !== f.required);
+      d.classList.toggle("fw-mark", this.marked(def.addr, b));
       if (!this.first && line.shown >= 0 && bit !== bitOf(line.shown, b)) this.flash(d);
     });
+    line.row.classList.toggle("fw-mark", this.marks.has(def.addr));
     const len = 2 + 1 + 4 + 2 + (plain ? 1 : 10) + (line.last ? 1 : 2);
     line.pad.data = " ".repeat(Math.max(1, CMT_COL - len));
     this.fitComment(line);
@@ -578,7 +601,8 @@ export class FirmwareEditor {
     this.iaddr.textContent = `${hex2(addr)}h`;
     this.hex.disabled = !this.editable(def);
     if (document.activeElement !== this.hex) this.showHex();
-    this.revert.hidden = v === s || !this.editable(def);
+    // An unused line can still go back to its start value (a bank saved before it was greyed out).
+    this.revert.hidden = v === s || !(this.editable(def) || this.unused.has(addr));
     this.revert.textContent = `↺ ${hex2(s)}`;
     if (!this.msg.classList.contains("say")) this.msg.textContent = this.unused.get(addr) ?? about(def);
 
@@ -637,6 +661,7 @@ export class FirmwareEditor {
       btn.classList.toggle("chg", bitOf(v, b) !== bitOf(s, b));
       const f = def && fieldAt(def, b);
       btn.classList.toggle("bad", f?.lock === "reserved" && field(v, f) !== f.required);
+      btn.classList.toggle("fw-mark", !!def && this.marked(def.addr, b));
     }
     for (const { f, val } of this.gridRows) {
       const fv = field(v, f);
