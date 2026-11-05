@@ -97,7 +97,10 @@ export class LevelView {
   private bg = 0;
   private raf = 0;
 
-  constructor(private onFocus: (reg: string) => void) {
+  constructor(
+    private onFocus: (reg: string) => void,
+    private onChipTap: () => void, // a tap on the small chip: open the pins
+  ) {
     this.el.className = "flow";
     this.inCard.className = "card card-in";
     this.outCard.className = "card card-out";
@@ -116,6 +119,15 @@ export class LevelView {
       this.schedule();
       this.placeWires();
     }).observe(this.el);
+    // The small chip lets touches through (it does not turn), so its box gets them. A tap on the
+    // chip itself (not the space around it) opens the pins, like the Pins button.
+    this.box.addEventListener("click", (e) => {
+      if (!this.pins && this.chip?.hits(e.clientX, e.clientY)) this.onChipTap();
+    });
+    this.box.addEventListener("pointermove", (e) => {
+      if (e.pointerType === "mouse") this.box.classList.toggle("tap", !this.pins && !!this.chip?.hits(e.clientX, e.clientY));
+    });
+    this.box.addEventListener("pointerleave", () => this.box.classList.remove("tap"));
     window.addEventListener("resize", () => {
       if (!this.pins || this.raf) return;
       this.rect = bigRect();
@@ -164,6 +176,7 @@ export class LevelView {
     const fit1 = on ? FIT_BIG : FIT_SMALL;
     const bg0 = this.bg;
     const still = instant || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.box.classList.remove("tap");
     if (on) {
       this.box.classList.add("big");
     } else {

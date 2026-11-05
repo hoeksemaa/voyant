@@ -285,6 +285,7 @@ code { font-family: var(--mono); }
   background-attachment: fixed;
   opacity: var(--bg, 0);
 }
+.chip-box.tap { cursor: pointer; } /* the mouse is on the small chip: a click opens the pins */
 .chip-box.ready .chip-canvas { cursor: grab; }
 .chip-box.ready .chip-canvas:active { cursor: grabbing; }
 /* Pins: the signal lines at the pins in use (level.ts drawSignals). Over the chip, under the
