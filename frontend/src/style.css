@@ -652,7 +652,6 @@ html.pins-open .wires { opacity: 0; }
 .anim-art .iris { fill: #3f4652; }
 .anim-art .lid { fill: #f1e6d4; }
 .anim-art .belly { opacity: 0.05; }
-.anim-art .seg { fill: #fffaf0; stroke: #6b7280; stroke-width: 1.5; stroke-linejoin: round; } /* arm: finger and thumb segments */
 .anim-art .knuckles { opacity: 0; }
 .anim-art .glow { opacity: 0.1; }
 .anim-art .el-mark { stroke: #fff; stroke-width: 1.6; }

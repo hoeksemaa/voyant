@@ -7,13 +7,13 @@
 const NS = "http://www.w3.org/2000/svg";
 type P = [number, number];
 
-const ELBOW: P = [22, 50]; // the forearm turns about this point
+export const ELBOW: P = [22, 50]; // the forearm turns about this point
 const WRIST: P = [160, 50]; // the hand turns about this point (hand outlines are relative to it)
 const LIFT = 13; // degrees the forearm comes up at c = 1
 const BEND = 24; // degrees the hand bends up at the wrist at c = 1
 
 // The forearm's edges, elbow to wrist, and the change at c = 1: the flexors swell on top.
-const TOP: P[] = [[14, 21.5], [36, 20.6], [60, 19.6], [85, 21.8], [110, 27.6], [132, 33.2], [150, 36.8], [161, 38.6]];
+const TOP: P[] = [[14, 22.6], [36, 20.6], [60, 19.6], [85, 21.8], [110, 27.6], [132, 33.2], [150, 36.8], [161, 38.6]];
 const TOP_FLEX = [0, -1.6, -5.8, -5.4, -2.8, -0.6, 0, 0];
 const BOT: P[] = [[161, 61.4], [150, 63.2], [132, 66.6], [110, 71.2], [85, 76], [60, 79.4], [36, 79.6], [14, 79.2]];
 const BOT_FLEX = [0, 0, 0.4, 1, 1.4, 1, 0.4, 0];
@@ -38,6 +38,12 @@ const KNUCKLES = "M41.6 -19.5 Q37.5 -17 39.4 -12.6 M43.6 -9.6 Q39.4 -7 41.2 -2.6
 const f = (v: number) => v.toFixed(2);
 const mix = (a: P[], b: P[], k: number): P[] => a.map(([x, y], i) => [x + (b[i][0] - x) * k, y + (b[i][1] - y) * k]);
 const at = (o: P, pts: P[]): P[] => pts.map(([x, y]) => [o[0] + x, o[1] + y]);
+/** Points turned about o by deg (− = up). */
+const rot = (pts: P[], o: P, deg: number): P[] => {
+  const c = Math.cos((deg * Math.PI) / 180);
+  const s = Math.sin((deg * Math.PI) / 180);
+  return pts.map(([x, y]) => [o[0] + (x - o[0]) * c - (y - o[1]) * s, o[1] + (x - o[0]) * s + (y - o[1]) * c]);
+};
 // Ease in and out, so the fist closes late in the move and opens early.
 const ease = (k: number) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 
@@ -68,14 +74,13 @@ export class ArmArt {
   readonly forearm: SVGGElement;
   /** The forearm's angle now (deg, − = up), so labels can stay level. */
   angle = 0;
-  private skin: SVGPathElement;
-  private top: SVGPathElement;
-  private bot: SVGPathElement;
+  private skin: SVGPathElement; // the forearm and the hand: one shape, so the wrist has no seam
+  private edge: SVGPathElement; // its outline, open at the elbow (the upper arm hides that end)
   private belly: SVGEllipseElement;
   private tendons: SVGPathElement;
   private hand: SVGGElement;
-  private handSkin: SVGPathElement;
   private thumb: SVGPathElement;
+  private thumbEdge: SVGPathElement;
   private gaps: SVGPathElement;
   private knuckles: SVGPathElement;
 
@@ -95,18 +100,18 @@ export class ArmArt {
     this.skin = make("path", "skin", this.forearm);
     this.belly = make("ellipse", "belly", this.forearm);
     this.belly.setAttribute("fill", "url(#musc)");
-    this.top = make("path", "line", this.forearm);
-    this.bot = make("path", "line", this.forearm);
+    this.edge = make("path", "line", this.forearm);
     make("path", "fine", this.forearm).setAttribute("d", "M26 32 Q21 50 26 68"); // the elbow crease
     this.tendons = make("path", "fine tendons", this.forearm);
     this.tendons.setAttribute("d", "M118 40 C132 42, 146 43.6, 157 44.6 M122 47.4 C135 48.2, 147 48.8, 157 49.2");
     this.hand = make("g", "hand", this.forearm);
-    this.handSkin = make("path", "seg", this.hand);
     this.gaps = make("path", "fine", this.hand);
     this.gaps.setAttribute("d", GAPS);
     this.knuckles = make("path", "fine", this.hand);
     this.knuckles.setAttribute("d", KNUCKLES);
-    this.thumb = make("path", "seg", this.hand);
+    // The thumb: a filled shape, outlined on all but its base, so it grows out of the palm.
+    this.thumb = make("path", "skin", this.hand);
+    this.thumbEdge = make("path", "line", this.hand);
     make("path", "fine", this.forearm).setAttribute("d", "M158.5 42 Q163 50 158.5 58"); // the wrist crease
     this.gaps.setAttribute("transform", `translate(${WRIST[0]} ${WRIST[1]})`);
     this.knuckles.setAttribute("transform", `translate(${WRIST[0]} ${WRIST[1]})`);
@@ -116,25 +121,30 @@ export class ArmArt {
   pose(c: number, shake: number): void {
     const top = TOP.map(([x, y], i): P => [x, y + TOP_FLEX[i] * c]);
     const bot = BOT.map(([x, y], i): P => [x, y + BOT_FLEX[i] * c]);
-    this.skin.setAttribute("d", curve([...top, ...bot], true));
-    this.top.setAttribute("d", curve(top, false));
-    this.bot.setAttribute("d", curve(bot, false));
-    this.belly.setAttribute("cx", "72");
-    this.belly.setAttribute("cy", f(45 - 3 * c));
-    this.belly.setAttribute("rx", "46");
-    this.belly.setAttribute("ry", f(18 + 4 * c));
+    // The fist is closed by "flex"; a hard flex only squeezes it.
+    const k = ease(c / 0.55);
+    const bend = -BEND * c + 1.5 * shake;
+    // One outline: the forearm's top, the hand (turned at the wrist), the forearm's bottom.
+    const hand = rot(at(WRIST, mix(HAND_OPEN, HAND_FIST, k)), WRIST, bend);
+    const outline = curve([...top.slice(0, -1), ...hand, ...bot.slice(1)], false);
+    this.skin.setAttribute("d", `${outline} Z`);
+    this.edge.setAttribute("d", outline);
+    // The swelling: on the flexors, clear of the reference pad below the elbow.
+    this.belly.setAttribute("cx", "76");
+    this.belly.setAttribute("cy", f(42 - 3 * c));
+    this.belly.setAttribute("rx", "30");
+    this.belly.setAttribute("ry", f(16 + 4 * c));
     this.belly.style.opacity = (0.04 + 0.5 * c).toFixed(3);
     this.tendons.style.opacity = (0.12 + 0.88 * c).toFixed(2);
 
     this.angle = -LIFT * c + shake;
     this.forearm.setAttribute("transform", `rotate(${f(this.angle)} ${ELBOW[0]} ${ELBOW[1]})`);
-    this.hand.setAttribute("transform", `rotate(${f(-BEND * c + 1.5 * shake)} ${WRIST[0]} ${WRIST[1]})`);
-
-    // The fist is closed by "flex"; a hard flex only squeezes it.
-    const k = ease(c / 0.55);
-    this.handSkin.setAttribute("d", curve(at(WRIST, mix(HAND_OPEN, HAND_FIST, k)), true));
-    this.thumb.setAttribute("d", curve(at(WRIST, mix(THUMB_OPEN, THUMB_FIST, k)), true));
-    this.gaps.style.opacity = (0.9 * (1 - k)).toFixed(2);
-    this.knuckles.style.opacity = (0.9 * k).toFixed(2);
+    this.hand.setAttribute("transform", `rotate(${f(bend)} ${WRIST[0]} ${WRIST[1]})`); // the thumb and lines
+    const thumb = at(WRIST, mix(THUMB_OPEN, THUMB_FIST, k));
+    this.thumb.setAttribute("d", curve(thumb, true));
+    this.thumbEdge.setAttribute("d", curve(thumb.slice(1), false));
+    // The lines belong to the end shapes: out early as the fingers leave, in late as the fist forms.
+    this.gaps.style.opacity = (0.9 * Math.max(0, 1 - k / 0.3)).toFixed(2);
+    this.knuckles.style.opacity = (0.9 * Math.max(0, (k - 0.7) / 0.3)).toFixed(2);
   }
 }
