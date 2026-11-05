@@ -292,7 +292,6 @@ function openLevel(id: SetupId): void {
   document.body.dataset.screen = "level";
   window.scrollTo(0, 0);
 
-  $(".lv-num").textContent = String(setup.level.n);
   $(".lv-name").textContent = setup.name;
   $(".lv-detail").textContent = `${setup.level.what} · ${setup.detail}`;
   fwButton.classList.toggle("nudge", !sessionStorage.getItem("fw-seen"));
