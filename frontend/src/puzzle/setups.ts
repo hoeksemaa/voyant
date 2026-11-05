@@ -24,9 +24,9 @@ export const SETUPS: Setup[] = [
     body: "arm",
     montage: "srb1",
     electrodes: [
-      { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.38, y: 0.42 },
-      { id: "elbow", label: "Below the elbow crease · gel pad · reference", pin: "SRB1", x: 0.17, y: 0.5 },
-      { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.84, y: 0.5 },
+      { id: "muscle", label: "Forearm muscle · gel pad", pin: "IN1P", x: 0.3, y: 0.43 },
+      { id: "elbow", label: "Below the elbow crease · gel pad · reference", pin: "SRB1", x: 0.165, y: 0.52 },
+      { id: "wrist", label: "Wrist · gel pad · bias", pin: "BIASOUT", x: 0.655, y: 0.5 },
     ],
     duration: 10,
     phases: [
