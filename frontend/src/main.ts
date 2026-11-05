@@ -10,7 +10,7 @@ import { Home } from "./ui/home";
 import { LevelView } from "./ui/level";
 import { Sheet, closeAll } from "./ui/sheet";
 import { CLIPS, PDF_URL, match, simulate, targetFor, usedChannels } from "./ui/sim-api";
-import { load, save } from "./ui/state";
+import { allFresh, load, resetAll, save, type State } from "./ui/state";
 import { Strip } from "./ui/strip";
 import { showWin } from "./ui/win";
 import "./style.css";
@@ -238,6 +238,35 @@ function route(): void {
 window.addEventListener("hashchange", route);
 window.addEventListener("popstate", route);
 
+// ---- home: Reset Levels. For a few seconds after, the button is Undo (like Reset in the firmware). ----
+const resetLevels = $<HTMLButtonElement>("#reset-levels");
+let undoLevels: State["setups"] | null = null;
+let undoLevelsTimer = 0;
+function paintResetLevels(): void {
+  resetLevels.textContent = undoLevels ? "Undo" : "Reset Levels";
+  resetLevels.disabled = !undoLevels && allFresh(state);
+}
+function endUndoLevels(): void {
+  clearTimeout(undoLevelsTimer);
+  undoLevels = null;
+}
+resetLevels.addEventListener("click", () => {
+  if (undoLevels) {
+    state.setups = undoLevels;
+    endUndoLevels();
+  } else {
+    undoLevels = structuredClone(state.setups);
+    resetAll(state);
+    undoLevelsTimer = window.setTimeout(() => {
+      undoLevels = null;
+      paintResetLevels();
+    }, 6000);
+  }
+  save(state);
+  for (const s of SETUPS) home.setSolved(s.id, state.setups[s.id].solved);
+  paintResetLevels();
+});
+
 function openHome(): void {
   closeAll();
   setPins(false, true);
@@ -248,10 +277,12 @@ function openHome(): void {
   document.body.dataset.screen = "home";
   document.title = "ADS1299"; // the tab only; the page heading keeps the full question
   for (const s of SETUPS) home.setSolved(s.id, state.setups[s.id].solved);
+  paintResetLevels();
   home.show();
 }
 
 function openLevel(id: SetupId): void {
+  endUndoLevels(); // a level can change its state: an Undo from home must not overwrite that
   closeAll();
   setPins(false, true);
   home.hide();
