@@ -15,6 +15,15 @@ const LABEL_SPAN = (PKG.pinsPerSide / 2) * PKG.pitch; // half-length of a row of
 
 const FONT = "Inter, system-ui, sans-serif";
 
+// Where each pin's label text ends, mm out from the package center (index = pin number − 1).
+// drawLabels fills it once the font is ready; until then, the end of the label strip.
+const LABEL_END: number[] = [];
+
+/** Where the pin's label text ends, mm out from the package center along the pin's line. */
+export function labelEnd(no: number): number {
+  return LABEL_END[no - 1] ?? LABEL_D1;
+}
+
 // A flat transparent canvas in the XZ plane. Canvas x follows world +X and canvas y follows
 // world +Z, so the canvas reads like the datasheet's top view.
 class TopCanvas {
@@ -89,6 +98,7 @@ function drawLabels(strip: TopCanvas, side: number): void {
     ctx.font = nameFont;
     ctx.fillStyle = GROUPS[pin.group].color;
     ctx.fillText(pin.name, outward ? numberWidth + gap : -(numberWidth + gap), 0);
+    LABEL_END[pin.no - 1] = LABEL_D0 + (numberWidth + gap + ctx.measureText(pin.name).width) / px; // name font: before restore
     ctx.restore();
   }
   strip.done();

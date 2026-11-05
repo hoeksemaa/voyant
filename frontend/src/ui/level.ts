@@ -1,5 +1,6 @@
 import type { Bank, MatchResult, Setup, SimResult } from "../puzzle/types";
-import { along, pinSide } from "../pin-layout";
+import { along, pinPoint, pinSide } from "../pin-layout";
+import { labelEnd } from "../pin-view";
 import { ChipView } from "./chip-view";
 import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, rangeText, screen, type Range } from "./traces";
@@ -10,7 +11,9 @@ import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_COLOR, cha
 // DOUT and DRDY on the top edge. The wires run in lanes around it, like traces on a board: the
 // inputs come down from their ports, around the right side, and up into their pins; the outputs
 // leave the top edge, go around the left side, and down to the output card. No two wires cross.
-// The Pins button grows this same chip to fill the screen and shows what each pin does.
+// The Pins button grows this same chip to fill the screen and shows what each pin does. There,
+// each pin the level uses has a short straight signal line past its label: in for the inputs
+// (REF, the channels), out for the outputs (BIASOUT, DOUT, DRDY).
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -22,6 +25,14 @@ const GAP = 9; // px from the chip's pin feet to the first lane
 const ROD = 6; // px: each wire leaves its pin straight for at least this long
 const BEND = 7; // px: the radius of each turn
 const CORNERS = [1, 16, 17, 32, 33, 48, 49, 64]; // the end pins of each side: the chip's footprint
+// Pins view signals: a straight line on the board, out along the pin's line.
+const SIG_GAP = 0.35; // mm from the end of the label text to the line, so they do not overlap
+const SIG_Y = 0.002; // mm: the board, where the labels lie
+const SIG_LEN = 72; // px: the line's length on screen; it fades out toward its outer end
+// The level's wire style (style.css: .wire, .wire-flow): a quiet base line with moving balls.
+const SIG_DASH = [0.5, 13.5];
+const SIG_PERIOD = 14;
+const SIG_SPEED = SIG_PERIOD / 0.9; // px/s
 
 interface Pt2 {
   x: number;
@@ -62,7 +73,7 @@ export class LevelView {
   private outCard = document.createElement("section");
   private slot = document.createElement("div");
   private box = document.createElement("div"); // holds the chip; grows to the full screen for Pins
-  private note = document.createElement("p");
+  private sig = document.createElement("canvas"); // Pins: the signal lines at the pins in use
   private svg = document.createElementNS(NS, "svg");
   private chip: ChipView | null = null;
   private setup: Setup | null = null;
@@ -91,8 +102,8 @@ export class LevelView {
     this.slot.className = "chip-slot";
     this.slot.innerHTML = `<span class="chip-cap"><b>ADS1299</b>8 channels<br>24-bit ΔΣ ADC</span>`;
     this.box.className = "chip-box";
-    this.note.className = "pins-note";
-    this.note.textContent = "Tap a pin to read it. Drag to turn the chip. Tap Pins to close.";
+    this.sig.className = "pin-sig";
+    this.sig.setAttribute("aria-hidden", "true");
     this.slot.append(this.box);
     this.svg.classList.add("wires");
     this.svg.setAttribute("aria-hidden", "true");
@@ -114,9 +125,13 @@ export class LevelView {
   async mountChip(): Promise<void> {
     if (this.chip) return;
     this.chip = new ChipView(this.box, { azimuth: 0, polar: 26, fit: { ...FIT_SMALL }, pins: true });
-    this.chip.onFrame(() => this.placeWires());
-    // The pin view puts its legend and its card on the page; keep them with the chip.
-    this.box.append(...document.querySelectorAll<HTMLElement>(".pin-legend, .pin-card"), this.note);
+    this.chip.onFrame(() => {
+      this.placeWires();
+      this.drawSignals();
+    });
+    // The pin view puts its legend and its card on the page; keep them with the chip (over the
+    // signal lines).
+    this.box.append(this.sig, ...document.querySelectorAll<HTMLElement>(".pin-legend, .pin-card"));
   }
 
   get pinsOn(): boolean {
@@ -125,7 +140,7 @@ export class LevelView {
 
   /**
    * On: the chip grows from its slot to the full screen under the toolbar, then shows its pins
-   * (tap a pin to read it, drag to turn). Off: the pins go, the chip turns back to its start
+   * and the signals at the pins in use (tap a pin to read it, drag to turn). Off: the pins go, the chip turns back to its start
    * angle and shrinks back into the slot. `instant` skips the motion (a screen change).
    */
   setPins(on: boolean, instant = false): void {
@@ -151,6 +166,7 @@ export class LevelView {
       this.box.classList.add("big");
     } else {
       this.box.classList.remove("ready");
+      chip.setAwake(false);
       chip.setPins(false);
       chip.setInteractive(false);
       chip.resetView(still ? 1 : GROW_MS);
@@ -174,6 +190,7 @@ export class LevelView {
         this.box.classList.add("ready");
         chip.setInteractive(true);
         chip.setPins(true);
+        chip.setAwake(!still); // the balls move on every frame
       } else {
         this.rect = null;
         this.box.classList.remove("big");
@@ -185,6 +202,65 @@ export class LevelView {
     };
     if (still) step(t0);
     else this.raf = requestAnimationFrame(step);
+  }
+
+  /**
+   * Pins view: for each pin in use, a straight line on the board out along the pin's line. It
+   * starts just past the label's text and fades out toward its outer end. Balls ride it: in for
+   * an input, out for an output. Drawn after each chip frame, so it turns with the chip.
+   */
+  private drawSignals(): void {
+    const chip = this.chip;
+    const c = this.sig;
+    if (!chip || !this.box.classList.contains("big")) return;
+    const w = this.box.clientWidth;
+    const h = this.box.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = Math.round(w * dpr);
+    const H = Math.round(h * dpr);
+    if (c.width !== W || c.height !== H) {
+      c.width = W;
+      c.height = H;
+    }
+    const ctx = c.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const phase = still ? 0 : ((performance.now() / 1000) * SIG_SPEED) % SIG_PERIOD;
+    const a = { x: 0, y: 0 };
+    const b = { x: 0, y: 0 };
+    ctx.lineCap = "round";
+    for (const wire of this.wires) {
+      const d = labelEnd(wire.pin) + SIG_GAP;
+      chip.project(pinPoint(wire.pin, d, SIG_Y), a);
+      chip.project(pinPoint(wire.pin, d + 1, SIG_Y), b);
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len < 0.5) continue; // the line points at the camera
+      const ex = a.x + ((b.x - a.x) / len) * SIG_LEN;
+      const ey = a.y + ((b.y - a.y) / len) * SIG_LEN;
+      const g = ctx.createLinearGradient(a.x, a.y, ex, ey);
+      g.addColorStop(0, wire.color);
+      g.addColorStop(0.55, wire.color);
+      g.addColorStop(1, `${wire.color}00`);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = g;
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // The path runs from the pin end outward. A falling offset moves the balls outward (an
+      // output: BIASOUT, DOUT, DRDY); a rising one moves them in, toward the pin (an input).
+      const out = wire.dir === "out" || wire.pin === pinNo("BIASOUT");
+      ctx.setLineDash(SIG_DASH);
+      ctx.lineDashOffset = out ? -phase : phase;
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3.4;
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
 
   private applyBox(): void {
