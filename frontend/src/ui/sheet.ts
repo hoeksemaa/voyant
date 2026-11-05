@@ -57,11 +57,19 @@ export class Sheet {
   }
 
   open(): void {
-    if (this.on) return;
+    if (this.on) {
+      // Open under another sheet: bring it to the top.
+      if (stack[stack.length - 1] === this) return;
+      stack.splice(stack.indexOf(this), 1);
+      stack.push(this);
+      restack();
+      this.panel.focus({ preventScroll: true });
+      return;
+    }
     this.on = true;
     clearTimeout(this.timer);
     stack.push(this);
-    this.root.style.zIndex = String(40 + stack.length);
+    restack();
     this.root.hidden = false;
     document.body.classList.add("sheet-open");
     void this.root.offsetWidth; // start the slide from the closed state
@@ -85,6 +93,10 @@ export class Sheet {
     if (this.on) this.close();
     else this.open();
   }
+}
+
+function restack(): void {
+  stack.forEach((s, i) => (s.root.style.zIndex = String(41 + i)));
 }
 
 /** Close every open sheet (going home). */

@@ -332,6 +332,7 @@ export class FirmwareEditor {
    * change, like a locked register. null: every editable register is in use.
    */
   setUnused(regs: Map<string, string> | null): void {
+    this.endUndo(); // a new level: an Undo from the last level must not carry over
     this.unused = new Map([...(regs ?? [])].map(([name, why]) => [REGISTERS.find((r) => r.name === name)!.addr, why]));
     for (const line of this.lines.values()) {
       const ed = this.editable(line.def);
@@ -600,7 +601,8 @@ export class FirmwareEditor {
     this.iaddr.textContent = `${hex2(addr)}h`;
     this.hex.disabled = !this.editable(def);
     if (document.activeElement !== this.hex) this.showHex();
-    this.revert.hidden = v === s || !this.editable(def);
+    // An unused line can still go back to its start value (a bank saved before it was greyed out).
+    this.revert.hidden = v === s || !(this.editable(def) || this.unused.has(addr));
     this.revert.textContent = `↺ ${hex2(s)}`;
     if (!this.msg.classList.contains("say")) this.msg.textContent = this.unused.get(addr) ?? about(def);
 
