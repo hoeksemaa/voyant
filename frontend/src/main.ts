@@ -8,6 +8,7 @@ import { Clock } from "./ui/clock";
 import { DatasheetViewer, FirmwareEditor } from "./ui/dock-api";
 import { Home } from "./ui/home";
 import { LevelView } from "./ui/level";
+import { Overview } from "./ui/overview";
 import { Sheet, closeAll } from "./ui/sheet";
 import { CLIPS, PDF_URL, match, simulate, targetFor, usedChannels } from "./ui/sim-api";
 import { allFresh, load, resetAll, save, type State } from "./ui/state";
@@ -103,6 +104,12 @@ const animSheet = new Sheet({
 animSheet.root.classList.add("sheet-anim");
 animSheet.body.append(anim.el);
 
+// Overview: a short text summary of the chip and of this level's hardware.
+const overview = new Overview();
+const ovSheet = new Sheet({ title: "Overview" });
+ovSheet.root.classList.add("sheet-ov");
+ovSheet.body.append(overview.el);
+
 // Hints: three steps per level (puzzle/hints.ts). Each opens the tool that it points at, over the
 // Hints sheet, so Done comes back to the list.
 const hintSheet = new Sheet({ title: "Hints" });
@@ -185,6 +192,7 @@ function setPins(on: boolean, instant = false): void {
 }
 const actions: Record<string, () => void> = {
   home: () => goHome(),
+  overview: () => ovSheet.toggle(),
   pins: () => setPins(!level.pinsOn),
   datasheet: () => dsSheet.toggle(),
   firmware: () => fwSheet.toggle(),
@@ -205,7 +213,7 @@ window.addEventListener("keydown", (e) => {
   }
   const t = e.target as HTMLElement;
   if (t.closest("input, textarea, select, [contenteditable]")) return;
-  const key = { h: "home", p: "pins", d: "datasheet", f: "firmware", a: "anim", i: "hint" }[e.key.toLowerCase()];
+  const key = { h: "home", o: "overview", p: "pins", d: "datasheet", f: "firmware", a: "anim", i: "hint" }[e.key.toLowerCase()];
   if (key && !(key !== "home" && document.querySelector(".win"))) {
     e.preventDefault();
     actions[key]();
@@ -293,6 +301,7 @@ function openLevel(id: SetupId): void {
   window.scrollTo(0, 0);
 
   $(".lv-name").textContent = setup.name;
+  overview.setSetup(setup);
   fwButton.classList.toggle("nudge", !sessionStorage.getItem("fw-seen"));
 
   const target = targetFor(setup);
