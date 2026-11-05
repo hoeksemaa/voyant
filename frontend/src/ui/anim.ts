@@ -45,6 +45,7 @@ interface Mark {
   e: Electrode;
   ch: number | null;
   glow: SVGCircleElement | null;
+  under: SVGCircleElement | null; // arm: a cream disc under the glow, so CH1 blue stays blue over the orange swelling
   label: SVGTextElement;
 }
 
@@ -141,6 +142,13 @@ export class AnimView {
     this.ranges = analog.map((a) => rangeOf(a.uv));
     this.act.clear();
     for (const a of analog) if (a.uv) this.act.set(a.ch, activity(a.uv, a.rate, setup.body));
+    if (setup.body === "head") {
+      // EEG: one scale for all channels, so a channel's glow shows its size against the others
+      // (alpha at the back of the head when the eyes close), not against its own peak.
+      let max = 1e-9;
+      for (const v of this.act.values()) for (const x of v) if (x > max) max = x;
+      for (const v of this.act.values()) for (let j = 0; j < v.length; j++) v[j] = Math.min(1, v[j] / max) ** 0.8;
+    }
     const used = wires(setup).filter((w) => w.p);
     const rh = used.length === 1 ? 120 : used.length === 2 ? 84 : 40;
     this.scope.style.setProperty("--rh", `${rh}px`);
@@ -221,6 +229,16 @@ export class AnimView {
     const color = ch ? CH_INK[ch - 1] : e.pin === "BIASOUT" ? BIAS_COLOR : REF_COLOR;
     const g = document.createElementNS(NS, "g");
     let glow: SVGCircleElement | null = null;
+    let under: SVGCircleElement | null = null;
+    if (ch && big) {
+      under = document.createElementNS(NS, "circle");
+      under.setAttribute("cx", String(x));
+      under.setAttribute("cy", String(y));
+      under.setAttribute("r", String(r));
+      under.setAttribute("fill", "#fffaf0");
+      under.style.opacity = "0";
+      g.append(under);
+    }
     if (ch) {
       glow = document.createElementNS(NS, "circle");
       glow.setAttribute("class", "glow");
@@ -257,7 +275,12 @@ export class AnimView {
     // (label below), the face's go down (label to the side).
     const body = this.setup!.body;
     const side = e.x < 0.5 ? -1 : 1;
-    if (body === "face") {
+    if (body === "arm" && e.pin === "BIASOUT") {
+      // The wrist: left of the pad, inside the forearm (above it, the thumb and fist move).
+      label.setAttribute("x", String(x - r - 4));
+      label.setAttribute("y", String(y + 3));
+      label.setAttribute("text-anchor", "end");
+    } else if (body === "face") {
       label.setAttribute("x", String(x + side * (r + 2.5)));
       label.setAttribute("y", String(y + 1.6));
       label.setAttribute("text-anchor", side < 0 ? "end" : "start");
@@ -269,7 +292,7 @@ export class AnimView {
     label.textContent = e.id;
     g.append(label);
     this.marksEl.append(g);
-    return { e, ch, glow, label };
+    return { e, ch, glow, under, label };
   }
 
   private frame(t: number): void {
@@ -290,8 +313,13 @@ export class AnimView {
       if (!p.glow || !p.ch) continue;
       const a = sample(this.act.get(p.ch), t);
       const r0 = setup.body === "arm" ? 4.6 : 3.4;
-      p.glow.setAttribute("r", (r0 + (setup.body === "arm" ? 11 : setup.body === "head" ? 5 : 7) * a).toFixed(2));
+      const r = (r0 + (setup.body === "arm" ? 11 : setup.body === "head" ? 5 : 7) * a).toFixed(2);
+      p.glow.setAttribute("r", r);
       p.glow.style.opacity = (0.08 + (setup.body === "head" ? 0.32 : 0.42) * a).toFixed(3);
+      if (p.under) {
+        p.under.setAttribute("r", r);
+        p.under.style.opacity = (0.8 * a).toFixed(3);
+      }
     }
 
     // The leads: each electrode's wire to its port on the chip.
@@ -401,6 +429,8 @@ const ACT_RATE = 50; // Hz
 /**
  * How active a channel is over time, 0–1. EOG: distance from the trace's middle (gaze).
  * EEG and EMG: the rms of the trace minus its slow level (alpha, blinks, muscle bursts).
+ * EEG also drops the mains hum first, and returns raw µV rms: setAnalog scales its channels
+ * together.
  */
 function activity(uv: Float32Array, rate: number, body: Setup["body"]): Float32Array {
   const n = Math.floor((uv.length / rate) * ACT_RATE);
@@ -428,19 +458,34 @@ function activity(uv: Float32Array, rate: number, body: Setup["body"]): Float32A
     const b = Math.min(uv.length, i + W + 1);
     hp[i] = uv[i] - (c[b] - c[a]) / (b - a);
   }
-  const R = Math.round(0.03 * rate);
+  let x = hp;
+  if (body === "head") {
+    // A boxcar three mains periods long nulls 60, 120, and 180 Hz and keeps most of the alpha
+    // band (10 Hz at about 0.64), so the glow shows brain rhythm, not hum.
+    const L = Math.max(1, Math.round((rate * 3) / 60));
+    const cs = new Float64Array(hp.length + 1);
+    for (let i = 0; i < hp.length; i++) cs[i + 1] = cs[i] + hp[i];
+    x = new Float32Array(hp.length);
+    for (let i = 0; i < hp.length; i++) {
+      const a = Math.max(0, i - (L >> 1));
+      const b = Math.min(hp.length, a + L);
+      x[i] = (cs[b] - cs[a]) / (b - a);
+    }
+  }
+  const R = Math.round((body === "head" ? 0.06 : 0.03) * rate);
   let max = 1e-9;
   for (let j = 0; j < n; j++) {
     const m = Math.floor(j * per);
     let ss = 0;
     let k = 0;
     for (let i = Math.max(0, m - R); i < Math.min(uv.length, m + R); i++) {
-      ss += hp[i] * hp[i];
+      ss += x[i] * x[i];
       k++;
     }
     out[j] = Math.sqrt(ss / Math.max(1, k));
     if (out[j] > max) max = out[j];
   }
+  if (body === "head") return out;
   for (let j = 0; j < n; j++) out[j] = Math.min(1, out[j] / max) ** 0.8;
   return out;
 }

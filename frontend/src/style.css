@@ -434,7 +434,7 @@ html.pins-open .wires { opacity: 0; }
 .key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 2px 0; font-size: 11.5px; color: var(--muted); }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key i { width: 14px; height: 3px; border-radius: 2px; }
-.k-out { background: linear-gradient(90deg, #4dabf7, #ffd43b, #f783ac); }
+.k-out { background: linear-gradient(90deg, #4dabf7, #ffa94d, #f783ac); }
 .k-target { background: #aab1bb; }
 
 /* Banner: global flags, or "Solved". */

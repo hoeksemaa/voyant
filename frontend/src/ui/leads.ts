@@ -2,8 +2,8 @@ import type { Electrode, Setup } from "../puzzle/types";
 import { BIAS_COLOR, CH_INK, REF_COLOR } from "./wiring";
 
 // The lead wires in the Animation sheet: each electrode has a wire to a port that names where
-// it goes on the chip (CH1 = IN1P, REF = SRB1, BIAS = BIASOUT), in the colors of the level's
-// ports. Dots run along each wire: into the chip from an input, out to the body from BIAS.
+// it goes on the chip (CH1 = IN1P, SRB1, BIAS = BIASOUT), in the colors of the level's ports.
+// Dots run along each wire: into the chip from an input, out to the body from BIAS.
 // They move with the level clock, and an input's dots are as bright as its channel is active.
 //
 // Ports: in a row under the arm and the face (the wires drop straight down, so none cross), and
@@ -14,14 +14,17 @@ const NS = "http://www.w3.org/2000/svg";
 
 /** The art's view box with room for the ports. */
 export const LEAD_VIEW: Record<Setup["body"], string> = {
-  arm: "-14 -30 258 142",
+  arm: "-14 -30 258 145",
   face: "-16 -2 132 124",
   head: "-38 -2 176 106",
 };
 const ROW_Y: Partial<Record<Setup["body"], number>> = { arm: 101, face: 113 };
 const COL_X = { left: -26, right: 126 }; // the head's port columns
 const PILL_H = 9.5;
-const GAP = 21; // the least space between two port centers in a row
+// Pill size by body, so the port text is about the same size on screen on each level (the arm's
+// wide view box draws at fewer px per unit).
+const PILL_K: Record<Setup["body"], number> = { arm: 1.6, face: 0.85, head: 1 };
+const GAP = 21; // the least space between two port centers in a row (× PILL_K)
 const COL_GAP = 13; // and in a column
 // Dot pattern, in screen px (the art's strokes do not scale). 18 px/s × 10 s = 20 periods, so a
 // loop of the clock does not make the dots jump.
@@ -35,6 +38,7 @@ interface Lead {
   port: P;
   side: "down" | "left" | "right";
   w: number; // the port's width
+  h: number; // and its height
   wire: SVGPathElement;
   dots: SVGPathElement;
 }
@@ -57,11 +61,12 @@ export class Leads {
   /** rest: each electrode's place in the art (view box units). */
   constructor(setup: Setup, rest: (e: Electrode) => P) {
     this.el.setAttribute("class", "leads");
+    const K = PILL_K[setup.body];
     const ports = new Map<Electrode, { at: P; side: Lead["side"] }>();
     const row = ROW_Y[setup.body];
     if (row !== undefined) {
       const es = setup.electrodes.slice().sort((a, b) => rest(a)[0] - rest(b)[0]);
-      const xs = spread(es.map((e) => rest(e)[0]), GAP);
+      const xs = spread(es.map((e) => rest(e)[0]), GAP * K);
       es.forEach((e, i) => ports.set(e, { at: [xs[i], row], side: "down" }));
     } else {
       for (const side of ["left", "right"] as const) {
@@ -86,8 +91,9 @@ export class Leads {
       const ch = m ? Number(m[1]) : null;
       const out = e.pin === "BIASOUT";
       const color = ch ? CH_INK[ch - 1] : out ? BIAS_COLOR : REF_COLOR;
-      const text = ch ? `CH${ch}` : out ? "BIAS" : "REF";
-      const w = text.length > 3 ? 21 : 17.5;
+      const text = ch ? `CH${ch}` : out ? "BIAS" : "SRB1"; // SRB1: as the trace lanes name it
+      const w = (text.length > 3 ? 21 : 17.5) * K;
+      const h = PILL_H * K;
       const wire = document.createElementNS(NS, "path");
       wire.setAttribute("class", "lead-wire");
       wire.setAttribute("stroke", color);
@@ -98,7 +104,8 @@ export class Leads {
       wires.append(wire, dots);
       const g = document.createElementNS(NS, "g");
       g.setAttribute("class", `lead-port${ch ? "" : out ? " lead-bias" : " lead-ref"}`);
-      g.innerHTML = `<rect x="${f(p.at[0] - w / 2)}" y="${f(p.at[1] - PILL_H / 2)}" width="${w}" height="${PILL_H}" rx="${PILL_H / 2}"/><text x="${f(p.at[0])}" y="${f(p.at[1] + 2.05)}" text-anchor="middle">${text}</text>`;
+      g.innerHTML = `<rect x="${f(p.at[0] - w / 2)}" y="${f(p.at[1] - h / 2)}" width="${f(w)}" height="${f(h)}" rx="${f(h / 2)}"/><text x="${f(p.at[0])}" y="${f(p.at[1] + 2.05 * K)}" text-anchor="middle">${text}</text>`;
+      g.querySelector("text")!.style.fontSize = `${f(5.4 * K)}px`;
       // Inline styles: the CSS sets the pill's look, and these give it its color.
       if (ch || out) g.querySelector("rect")!.style.fill = color;
       else {
@@ -106,7 +113,7 @@ export class Leads {
         g.querySelector("text")!.style.fill = color;
       }
       pills.append(g);
-      this.leads.push({ e, ch, out, port: p.at, side: p.side, w, wire, dots });
+      this.leads.push({ e, ch, out, port: p.at, side: p.side, w, h, wire, dots });
     }
   }
 
@@ -117,7 +124,7 @@ export class Leads {
       const [px, py] = l.port;
       let d: string;
       if (l.side === "down") {
-        const ey = py - PILL_H / 2;
+        const ey = py - l.h / 2;
         const k = 0.5 * (ey - y);
         d = `M${f(x)} ${f(y)} C${f(x)} ${f(y + k)} ${f(px)} ${f(ey - k)} ${f(px)} ${f(ey)}`;
       } else {
