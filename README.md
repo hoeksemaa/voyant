@@ -11,7 +11,7 @@ Live: [voyant-sim.vercel.app](https://voyant-sim.vercel.app)
 3. Tap Firmware and edit the registers until the two match.
 4. A green check on the home screen marks a solved level.
 
-Each level starts from the real Cerelog stock V2 firmware. Pins, Datasheet, and Animation open as full-screen sheets.
+Each level starts from the real Cerelog stock V2 firmware. Overview, Datasheet, Animation, Hint, and Firmware open as full-screen sheets. Pins grows the chip to fill the screen.
 
 ## The 3 levels
 
