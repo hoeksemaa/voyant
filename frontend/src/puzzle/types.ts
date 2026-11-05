@@ -60,7 +60,6 @@ export interface Phase {
 export interface Setup {
   id: SetupId;
   name: string; // "EEG"
-  detail: string; // "8 electrodes on the scalp"
   body: "head" | "face" | "arm"; // which drawing
   electrodes: Electrode[];
   montage: Montage;
