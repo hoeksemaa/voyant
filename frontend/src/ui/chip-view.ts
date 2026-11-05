@@ -3,7 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { buildChip } from "../chip";
 import { PKG } from "../package-dims";
-import { HALF, pinPoint } from "../pin-layout";
+import { HALF, TOP_Y, pinPoint } from "../pin-layout";
 import { PinView } from "../pin-view";
 
 // One 3D ADS1299 in a box on the page. The canvas fills its container. The home screen and the
@@ -40,6 +40,12 @@ export interface Pt {
   behind: boolean; // the chip body hides the pin
 }
 
+// The chip's footprint in its own frame (mm): lead tip to lead tip, from the board to the top.
+const FOOTPRINT = new THREE.Box3(
+  new THREE.Vector3(-PKG.leadSpan / 2, 0, -PKG.leadSpan / 2),
+  new THREE.Vector3(PKG.leadSpan / 2, TOP_Y, PKG.leadSpan / 2),
+);
+
 export class ChipView {
   readonly canvas: HTMLCanvasElement;
   private renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -64,6 +70,8 @@ export class ChipView {
   private listeners: (() => void)[] = [];
   private raycaster = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
+  private ray = new THREE.Ray();
+  private inv = new THREE.Matrix4();
   private v = new THREE.Vector3();
   private w = new THREE.Vector3();
   private alive = true;
@@ -312,20 +320,26 @@ export class ChipView {
    * above the board (the pin labels face up and are culled from below), and the chip body does
    * not hide the point.
    */
-  /** True when the point (client px) is on the chip itself: its body or a lead. */
-  hits(x: number, y: number): boolean {
-    const r = this.canvas.getBoundingClientRect();
-    if (!r.width || !r.height) return false;
-    this.ndc.set(((x - r.left) / r.width) * 2 - 1, 1 - ((y - r.top) / r.height) * 2);
-    this.raycaster.setFromCamera(this.ndc, this.camera);
-    return this.raycaster.intersectObject(this.chipGroup, true).length > 0;
-  }
-
   sees(local: THREE.Vector3): boolean {
     const g = this.chipGroup;
     g.updateWorldMatrix(true, false);
     if (g.worldToLocal(this.w.copy(this.camera.position)).y <= local.y) return false;
     return !this.hidden(this.w.copy(local).applyMatrix4(g.matrixWorld));
+  }
+
+  /**
+   * True when the point (client px) is on the chip: inside its footprint from lead tip to lead
+   * tip, so a tap between two leads counts too.
+   */
+  hits(x: number, y: number): boolean {
+    const r = this.canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    this.ndc.set(((x - r.left) / r.width) * 2 - 1, 1 - ((y - r.top) / r.height) * 2);
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    const g = this.chipGroup;
+    g.updateWorldMatrix(true, false);
+    this.ray.copy(this.raycaster.ray).applyMatrix4(this.inv.copy(g.matrixWorld).invert());
+    return this.ray.intersectsBox(FOOTPRINT);
   }
 
   private hidden(p: THREE.Vector3): boolean {
