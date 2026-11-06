@@ -69,6 +69,20 @@ export function drawGrid(s: Screen, duration: number, phases: Phase[], r: Range 
   }
 }
 
+/**
+ * The grid of a zoomed row (time t0 to t1): a line every 0.1 s, at fixed times, so the lines
+ * move with the window. And a zero line when 0 is in range.
+ */
+export function drawZoomGrid(s: Screen, t0: number, t1: number, r: Range | null): void {
+  const { ctx, w, h, dpr } = s;
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  for (let k = Math.ceil(t0 * 10); k / 10 < t1; k++) ctx.fillRect(Math.round(((k / 10 - t0) / (t1 - t0)) * w), 0, dpr, h);
+  if (r && r.lo < 0 && r.hi > 0) {
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(0, Math.round(yOf(s, r, 0)), w, dpr);
+  }
+}
+
 const PAD = 3; // css px between the trace and the row edge
 
 function yOf(s: Screen, r: Range, v: number): number {
@@ -147,7 +161,10 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
       // Fewer samples than columns: fill the columns between this sample and the next.
       if (per < 1) {
         const x1 = Math.min(w - 1, Math.floor((i + 1) / per));
-        for (let xx = x + 1; xx < x1; xx++) dens[Math.floor(yy) * w + xx] += 1;
+        for (let xx = x + 1; xx < x1; xx++) {
+          dens[Math.floor(yy) * w + xx] += 1;
+          if (off) off[xx] |= off[x]; // the off-scale mark covers the sample's columns too
+        }
       }
     } else {
       dens[Math.floor(yy) * w + x] += 1;
