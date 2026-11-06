@@ -14,6 +14,9 @@ export const REF_COLOR = "#5d636d"; // SRB1 reference electrode
 export const BIAS_COLOR = "#8b5cf6"; // bias drive (pin group "bias")
 export const SERIAL_INK = "#b07800"; // serial interface wires (DOUT, DRDY): the pin view's amber, deep enough for paper
 export const TARGET_COLOR = "#aab1bb"; // the target trace: quiet grey
+// The target as a pale band (3 css px each way) under the output line: the output is a sharp
+// line in its channel color, and the target is the wide track that it must follow.
+export const TARGET_BAND = { color: TARGET_COLOR, alpha: 0.42, band: 3 };
 
 export const pinNo = (name: string): number => PINS.find((p) => p.name === name)!.no;
 
@@ -61,7 +64,8 @@ export interface Tag {
 
 /**
  * The short word on a row: why the trace looks the way it does.
- * Order: invalid, off, a non-electrode input, a floating input, clipped.
+ * Order: invalid, off, a non-electrode input, a floating input. (A clipped trace shows its red
+ * edge; it gets no tag.)
  */
 export function channelTag(setup: Setup, bank: Bank, out: ChannelOut, pass: boolean): Tag | null {
   const reg = byName(`CH${out.ch}SET`);
@@ -72,7 +76,6 @@ export function channelTag(setup: Setup, bank: Bank, out: ChannelOut, pass: bool
   else if (out.status === "off") text = "off";
   else if (mux !== 0) text = MUX_TAG[mux];
   else if (!hasP) text = "floats";
-  else if (out.clipped) text = "clipped";
   if (!text) return null;
   return { text, bad: !pass };
 }

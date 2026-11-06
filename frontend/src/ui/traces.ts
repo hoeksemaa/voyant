@@ -97,6 +97,7 @@ export interface TraceStyle {
   glow?: boolean; // a soft halo (output and analog); none on the quiet target
   alpha?: number;
   edges?: boolean; // mark the columns where the trace goes past the top or bottom of the row
+  band?: number; // draw a flat band this many css px each way (up and down) from the trace, not a line
 }
 
 /**
@@ -162,17 +163,20 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
     const d = dens[i];
     if (d > 0) lum[i] = Math.min(1, Math.max(0.14, 2.5 * Math.sqrt(d * norm)));
   }
-  // Max filter, one axis at a time: 3 × 3 at 2× pixel ratio, 1 × 2 at 1×.
+  // Max filter, one axis at a time. A line: 3 × 3 at 2× pixel ratio, 1 × 2 at 1×. A band: flat,
+  // style.band css px up and down, and half that to each side.
   const wide = dpr >= 1.5;
+  const b = style.band ? Math.max(1, Math.round(style.band * dpr)) : 0;
+  if (b) for (let i = 0; i < lum.length; i++) if (lum[i] > 0) lum[i] = 1;
+  const side = b ? Math.ceil(b / 2) : wide ? 1 : 0;
+  const up = b || (wide ? 1 : 0);
+  const down = b || 1;
   const tmp = new Float32Array(w * h);
   for (let row = 0; row < h; row++) {
     const base = row * w;
     for (let x = 0; x < w; x++) {
-      let m = lum[base + x];
-      if (wide) {
-        if (x > 0 && lum[base + x - 1] > m) m = lum[base + x - 1];
-        if (x < w - 1 && lum[base + x + 1] > m) m = lum[base + x + 1];
-      }
+      let m = 0;
+      for (let xx = Math.max(0, x - side); xx <= Math.min(w - 1, x + side); xx++) if (lum[base + xx] > m) m = lum[base + xx];
       tmp[base + x] = m;
     }
   }
@@ -181,12 +185,11 @@ export function drawTrace(s: Screen, uv: Float32Array, r: Range, style: TraceSty
   const [cr, cg, cb] = rgb(style.color);
   for (let row = 0; row < h; row++) {
     const base = row * w;
-    const up = row > 0 ? base - w : -1;
-    const down = row < h - 1 ? base + w : -1;
+    const r0 = Math.max(0, row - up);
+    const r1 = Math.min(h - 1, row + down);
     for (let x = 0; x < w; x++) {
-      let m = tmp[base + x];
-      if (down >= 0 && tmp[down + x] > m) m = tmp[down + x];
-      if (wide && up >= 0 && tmp[up + x] > m) m = tmp[up + x];
+      let m = 0;
+      for (let rr = r0; rr <= r1; rr++) if (tmp[rr * w + x] > m) m = tmp[rr * w + x];
       if (m > 0) {
         const o = (base + x) * 4;
         px[o] = cr;

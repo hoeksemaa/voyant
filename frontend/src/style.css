@@ -254,22 +254,6 @@ code { font-family: var(--mono); }
 .chip-box.ready .pin-sig { opacity: 1; }
 html.pins-open { overflow: hidden; }
 html.pins-open .wires { opacity: 0; }
-.chip-cap {
-  position: absolute;
-  left: 16px;
-  bottom: 14px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-width: 104px;
-  font-size: 11px;
-  line-height: 1.3;
-  color: var(--faint);
-  pointer-events: none;
-}
-.chip-cap b { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted); }
-.chip-cap.off { visibility: hidden; }
 
 .wires { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: opacity 0.15s; }
 .wire { fill: none; stroke-width: 1.5; opacity: 0.5; }
@@ -303,10 +287,26 @@ html.pins-open .wires { opacity: 0; }
 
 /* Scope: a dark screen inside the card. */
 .scope { position: relative; padding: 7px 8px 2px; border-radius: 12px; background: var(--scope); color: #e9ebee; }
+.scope-in, .scope-out { padding-left: 20px; } /* room for the y-axis label */
+.ylab {
+  position: absolute;
+  top: 28px;
+  bottom: 20px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
 .srow { display: grid; column-gap: 6px; }
 .scope-in .srow { grid-template-columns: 34px minmax(0, 1fr); }
 .scope-anim .srow { grid-template-columns: 62px minmax(0, 1fr); }
-.scope-out .srow { grid-template-columns: 34px minmax(0, 1fr) 20px; }
+.scope-out .srow { grid-template-columns: 34px minmax(0, 1fr); }
 .srow.strip { height: 18px; margin-bottom: 3px; }
 .srow.axis { height: 18px; }
 .rows { display: flex; flex-direction: column; }
@@ -336,15 +336,6 @@ html.pins-open .wires { opacity: 0; }
   cursor: pointer;
 }
 .tag.bad { background: var(--red); color: #fff; }
-.pip { display: flex; align-items: center; justify-content: center; }
-.pip svg { width: 18px; height: 18px; overflow: visible; }
-.pip-track { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 2.4; }
-.pip-arc { fill: none; stroke: rgba(255, 255, 255, 0.72); stroke-width: 2.4; stroke-linecap: round; transition: stroke-dasharray 0.25s ease-out; }
-.pip-fill { fill: var(--green); opacity: 0; transform: scale(0.6); transform-origin: 10px 10px; transition: opacity 0.2s ease-out, transform 0.2s ease-out; }
-.pip-check { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity 0.2s ease-out; }
-.pip.pass .pip-fill { opacity: 1; transform: none; }
-.pip.pass .pip-check { opacity: 1; }
-.pip.pass .pip-track, .pip.pass .pip-arc { opacity: 0; }
 .phases { display: flex; gap: 2px; min-width: 0; }
 .phases span {
   flex-basis: 0;
@@ -366,8 +357,7 @@ html.pins-open .wires { opacity: 0; }
 
 /* Playhead: the clock's time, across each card's screens. */
 .playhead { position: absolute; top: 28px; bottom: 20px; pointer-events: none; }
-.scope-in .playhead { left: 76px; right: 8px; }
-.scope-out .playhead { left: 48px; right: 34px; }
+.scope-in .playhead, .scope-out .playhead { left: 60px; right: 8px; } /* 20 + 34 + 6: the screens' left edge */
 .playhead i {
   position: absolute;
   top: 0;
@@ -383,7 +373,7 @@ html.pins-open .wires { opacity: 0; }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key i { width: 14px; height: 3px; border-radius: 2px; }
 .k-out { background: linear-gradient(90deg, #4dabf7, #ffa94d, #f783ac); }
-.k-target { background: #aab1bb; }
+.key i.k-target { height: 9px; border-radius: 5px; background: rgba(170, 177, 187, 0.6); } /* the band */
 
 /* Banner: global flags, or "Solved". */
 .banner { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
