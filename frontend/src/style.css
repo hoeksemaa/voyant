@@ -156,10 +156,10 @@ code { font-family: var(--mono); }
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(10, 1fr); /* row 1: 5 tools, 2 columns each; row 2: Overview and Firmware, 5 each */
+  gap: 5px;
   margin: 0 -16px;
-  padding: 10px 8px;
+  padding: 10px 10px;
   background: rgba(244, 241, 232, 0.88);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -170,24 +170,20 @@ code { font-family: var(--mono); }
   align-items: center;
   gap: 2px;
   min-width: 0;
+  grid-column: span 2;
   padding: 7px 0 6px;
   border-radius: 13px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.01em;
 }
-/* Seven labels in a phone row: smaller type on narrow phones, so no label is cut. */
-@media (max-width: 409px) {
-  .toolbar { gap: 3px; padding: 8px 6px; }
+/* Row 2: two wide buttons, icon beside the label. */
+.toolbar button.wide { grid-column: span 5; flex-direction: row; justify-content: center; gap: 7px; padding: 7px 10px; font-size: 13px; }
+.toolbar button.wide svg { width: 20px; height: 20px; }
+/* Narrow phones: smaller type, so no label is cut. */
+@media (max-width: 359px) {
+  .toolbar { gap: 4px; padding: 8px 6px; }
   .toolbar button { font-size: 10px; letter-spacing: -0.03em; }
-}
-@media (max-width: 369px) {
-  .toolbar { gap: 2px; padding: 8px 4px; }
-  .toolbar button { font-size: 9px; letter-spacing: -0.04em; }
-}
-@media (max-width: 339px) {
-  .toolbar { padding: 8px 3px; }
-  .toolbar button { font-size: 8.5px; }
 }
 .toolbar svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .toolbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
