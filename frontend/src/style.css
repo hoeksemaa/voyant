@@ -306,7 +306,8 @@ html.pins-open .wires { opacity: 0; }
 .srow { display: grid; column-gap: 6px; }
 .scope-in .srow { grid-template-columns: 34px minmax(0, 1fr); }
 .scope-anim .srow { grid-template-columns: 62px minmax(0, 1fr); }
-.scope-out .srow { grid-template-columns: 34px minmax(0, 1fr) 22px; }
+.scope-out .srow { grid-template-columns: 34px minmax(0, 1fr); }
+.scope-out.zoomable .srow { grid-template-columns: 34px minmax(0, 1fr) 22px; }
 .srow.strip { height: 18px; margin-bottom: 3px; }
 .srow.axis { height: 18px; }
 .rows { display: flex; flex-direction: column; }
@@ -336,12 +337,15 @@ html.pins-open .wires { opacity: 0; }
   cursor: pointer;
 }
 .tag.bad { background: var(--red); color: #fff; }
-/* Zoom: a magnifier at the end of each output row. On, the row is taller and shows ZOOM_S. */
+/* Zoom (3+ channels): a magnifier at the end of each output row. On, its row fills the scope
+   (n rows tall), and the other rows hide. */
 .zoom { display: grid; place-items: center; align-self: center; width: 22px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: none; color: rgba(255, 255, 255, 0.45); cursor: pointer; }
 .zoom svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
 .zoom:hover { color: rgba(255, 255, 255, 0.8); }
 .zoom[aria-pressed="true"] { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.srow.ch.zoomed { height: max(var(--rh, 64px), 96px); }
+.scope-out.zoomed .srow.ch:not(.zoomed) { display: none; }
+.scope-out .srow.ch.zoomed { height: calc(var(--rh, 64px) * var(--n, 1)); border-top: 0; }
+.scope-out .srow.ch.zoomed .screen { margin-top: 0; }
 .phases { display: flex; gap: 2px; min-width: 0; }
 .phases span {
   flex-basis: 0;
@@ -364,7 +368,7 @@ html.pins-open .wires { opacity: 0; }
 /* Playhead: the clock's time, across each card's screens. */
 .playhead { position: absolute; top: 28px; bottom: 20px; pointer-events: none; }
 .scope-in .playhead, .scope-out .playhead { left: 60px; right: 8px; } /* 20 + 34 + 6: the screens' left edge */
-.scope-out .playhead { right: 36px; } /* 8 + 22 + 6: left of the zoom buttons */
+.scope-out.zoomable .playhead { right: 36px; } /* 8 + 22 + 6: left of the zoom buttons */
 .playhead i {
   position: absolute;
   top: 0;

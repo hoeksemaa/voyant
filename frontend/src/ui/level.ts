@@ -1,9 +1,9 @@
-import type { Bank, ChannelOut, MatchResult, Setup, SimResult } from "../puzzle/types";
+import type { Bank, MatchResult, Setup, SimResult } from "../puzzle/types";
 import { along, pinPoint, pinSide } from "../pin-layout";
 import { labelEnd } from "../pin-view";
 import { ChipView } from "./chip-view";
 import { fitPhases, phaseStrip, renderBanner, timeAxis } from "./parts";
-import { drawGrid, drawTrace, drawZoomGrid, rangeOf, screen, type Range } from "./traces";
+import { drawGrid, drawTrace, rangeOf, screen, type Range } from "./traces";
 import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_BAND, channelTag, pinNo, wires } from "./wiring";
 
 // One level on the phone: analog in (top) → the chip (middle) → digital out (bottom).
@@ -52,12 +52,11 @@ interface Row {
   el: HTMLElement;
   canvas: HTMLCanvasElement;
   tag?: HTMLButtonElement;
-  zoomed?: boolean; // output: the row shows ZOOM_S around the playhead
+  zoom?: HTMLButtonElement; // output, 3+ channels: the magnifier
 }
 
-// Zoom on an output row: a short window that slides with the playhead. Its start is
-// t − ZOOM_S × (t / duration), so the time at the playhead's x is t in the zoomed row too.
-const ZOOM_S = 0.5;
+// Zoom on an output row (levels with 3+ channels): the row fills the whole scope, so it is
+// n times as tall, and the other rows hide. Same 10 s, same playhead.
 const MAGNIFIER = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.2"/><path d="M12.4 12.4 17 17"/></svg>`;
 
 interface Wire {
@@ -93,7 +92,8 @@ export class LevelView {
   private heads: HTMLElement[] = [];
   private banner = document.createElement("div");
   private queued = false;
-  private t = 0; // the clock's time
+  private zoomCh: number | null = null; // the output channel that fills the scope
+  private scopeOut: HTMLElement | null = null;
   // Pins: the box's place on screen while it is not in the slot, the chip's fit, and the backdrop.
   private pins = false;
   private rect: Rect | null = null;
@@ -369,22 +369,24 @@ export class LevelView {
       tag.addEventListener("click", () => this.onFocus(tag.dataset.reg!));
       r.el.querySelector(".screen")!.append(tag);
       r.tag = tag;
-      const zoom = document.createElement("button");
-      zoom.type = "button";
-      zoom.className = "zoom";
-      zoom.innerHTML = MAGNIFIER;
-      zoom.setAttribute("aria-label", `Zoom in on CH${w.ch}`);
-      zoom.setAttribute("aria-pressed", "false");
-      zoom.addEventListener("click", () => {
-        r.zoomed = !r.zoomed;
-        r.el.classList.toggle("zoomed", r.zoomed);
-        zoom.setAttribute("aria-pressed", String(r.zoomed));
-        this.schedule();
-      });
-      r.el.append(zoom);
+      if (used.length > 2) {
+        const zoom = document.createElement("button");
+        zoom.type = "button";
+        zoom.className = "zoom";
+        zoom.innerHTML = MAGNIFIER;
+        zoom.setAttribute("aria-label", `Zoom in on CH${w.ch}`);
+        zoom.setAttribute("aria-pressed", "false");
+        zoom.addEventListener("click", () => this.setZoom(this.zoomCh === w.ch ? null : w.ch));
+        r.el.append(zoom);
+        r.zoom = zoom;
+      }
       scopeOut.rows.append(r.el);
       return r;
     });
+    this.zoomCh = null;
+    this.scopeOut = scopeOut.el;
+    scopeOut.el.classList.toggle("zoomable", used.length > 2);
+    scopeOut.el.style.setProperty("--n", String(used.length));
     scopeOut.strip.append(phaseStrip(setup));
     scopeOut.axis.append(timeAxis(setup.duration));
     const key = document.createElement("p");
@@ -441,10 +443,20 @@ export class LevelView {
   /** Playhead: one line across each card's screens, at time t. */
   setTime(t: number): void {
     if (!this.setup) return;
-    this.t = t;
     const f = Math.min(1, Math.max(0, t / this.setup.duration));
     for (const h of this.heads) h.style.setProperty("--t", f.toFixed(4));
-    if (this.rowsOut.some((r) => r.zoomed) && this.el.offsetParent) for (const r of this.rowsOut) if (r.zoomed) this.drawOut(r);
+  }
+
+  /** Zoom one output channel to fill the scope, or (null) show them all. */
+  private setZoom(ch: number | null): void {
+    this.zoomCh = ch;
+    this.scopeOut?.classList.toggle("zoomed", ch !== null);
+    for (const r of this.rowsOut) {
+      r.el.classList.toggle("zoomed", r.ch === ch);
+      r.zoom?.setAttribute("aria-pressed", String(r.ch === ch));
+      r.zoom?.setAttribute("aria-label", r.ch === ch ? "Show all channels" : `Zoom in on CH${r.ch}`);
+    }
+    this.schedule();
   }
 
   private schedule(): void {
@@ -478,18 +490,11 @@ export class LevelView {
     if (!setup || !target || !s) return;
     const k = r.ch - 1;
     const out = this.sim?.out[k];
-    const line = { color: CH_COLORS[k], edges: true };
-    if (!r.zoomed) {
-      drawGrid(s, setup.duration, setup.phases, this.tRange[k]);
-      drawTrace(s, target.out[k].uv, this.tRange[k], TARGET_BAND);
-      if (out) drawTrace(s, out.uv, this.tRange[k], line);
-      return;
-    }
-    const t0 = Math.min(setup.duration - ZOOM_S, Math.max(0, this.t - ZOOM_S * (this.t / setup.duration)));
-    const cut = (o: ChannelOut) => o.uv.subarray(Math.round(t0 * o.rate), Math.round((t0 + ZOOM_S) * o.rate));
-    drawZoomGrid(s, t0, t0 + ZOOM_S, this.tRange[k]);
-    drawTrace(s, cut(target.out[k]), this.tRange[k], TARGET_BAND);
-    if (out) drawTrace(s, cut(out), this.tRange[k], line);
+    drawGrid(s, setup.duration, setup.phases, this.tRange[k]);
+    drawTrace(s, target.out[k].uv, this.tRange[k], TARGET_BAND);
+    // Zoomed, the row is n times as tall: √n keeps the line as bright as in a normal row.
+    const gain = this.zoomCh === r.ch ? Math.sqrt(this.rowsOut.length) : 1;
+    if (out) drawTrace(s, out.uv, this.tRange[k], { color: CH_COLORS[k], edges: true, gain });
   }
 
   /**
