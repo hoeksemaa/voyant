@@ -90,6 +90,9 @@ export class LevelView {
   private tRange: Range[] = [];
   private wires: Wire[] = [];
   private heads: HTMLElement[] = [];
+  // The match count ("0 / 1 match" and a dot per channel) sits on the Digital out card, next to
+  // the output that it scores. main.ts fills it.
+  private score = document.createElement("div");
   private banner = document.createElement("div");
   private queued = false;
   private zoomCh: number | null = null; // the output channel that fills the scope
@@ -116,6 +119,8 @@ export class LevelView {
     this.svg.classList.add("wires");
     this.svg.setAttribute("aria-hidden", "true");
     this.banner.className = "banner";
+    this.score.className = "lv-score";
+    this.score.innerHTML = `<span class="dots"></span><b class="lv-count"></b>`;
     this.el.append(this.inCard, this.slot, this.outCard, this.svg);
     new ResizeObserver(() => {
       this.sizeSlot();
@@ -359,6 +364,7 @@ export class LevelView {
       outPorts.push({ el: p, pin: pinNo(name), color: SERIAL_INK });
     }
     const outHead = head("Digital out");
+    outHead.append(this.score);
     const scopeOut = scope("scope-out", rh);
     this.rowsOut = used.map((w) => {
       const r = row(w.ch, `<b><i></i>CH${w.ch}</b>`);
