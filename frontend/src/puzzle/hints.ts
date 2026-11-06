@@ -24,29 +24,29 @@ export interface LevelHints {
 export const HINTS: Record<SetupId, LevelHints> = {
   emg: {
     clip: "config1",
-    read: "Muscle signal is fast: most of its power is at 50–150 Hz. Compare the output bursts with the target, then read CONFIG1.",
+    read: "The output bursts are smaller and smoother than the target. Each sample is an average over a window of about 3 sample periods, so at a slow data rate, fast wiggles average out. Read CONFIG1: it sets the data rate.",
     marks: [{ reg: "CONFIG1", field: "DR[2:0]" }],
-    mark: "Change DR[2:0] in CONFIG1: the data rate.",
+    mark: "Change DR[2:0] in CONFIG1. Each step down in DR doubles the data rate. Set the target's rate: 2,000 SPS.",
     answer: { CONFIG1: 0xb3 },
-    why: "CONFIG1 = 0xB3: DR = 011, 2,000 SPS. At 250 SPS the filter cuts at 65 Hz and folds the rest of the muscle signal down.",
+    why: "CONFIG1 = 0xB3: DR = 011, 2,000 SPS. At 250 SPS, the window is 12 ms, longer than one 100 Hz muscle wiggle (10 ms), so a 100 Hz wiggle keeps only 43% of its size. At 2,000 SPS, the window is 1.5 ms, and it keeps 99%.",
   },
   eog: {
     clip: "chnset",
-    read: "Both eye channels sit flat at the edge of their range. Read what sets a channel's input range in CHnSET.",
+    read: "Both outputs are flat at the edge of their range: the input is too large, so it clips. Each eye electrode sits about 200 mV from the reference. The gain sets the range: ±4.5\u00a0V ÷ gain. Read CHnSET.",
     marks: [
       { reg: "CH1SET", field: "GAIN1[2:0]" },
       { reg: "CH2SET", field: "GAIN2[2:0]" },
     ],
-    mark: "Change GAIN[2:0] in CH1SET and CH2SET.",
+    mark: "Change GAIN[2:0] in CH1SET and CH2SET. A lower gain gives a wider range.",
     answer: { CH1SET: 0x50, CH2SET: 0x50 },
-    why: "CH1SET = CH2SET = 0x50: gain 12, ±375 mV. The eye electrodes sit about ±200 mV from the reference, past the ±187.5 mV range of gain 24.",
+    why: "CH1SET = CH2SET = 0x50: gain 12, range ±375 mV. Each eye electrode sits about 200 mV from the reference. That is past the ±187.5 mV range of gain 24.",
   },
   eeg: {
     clip: "bias-sensp",
-    read: "Every channel has 60 Hz hum from the room. Read which inputs feed the bias drive in BIAS_SENSP.",
+    read: "Every channel has 60 Hz hum from the room. The bias drive cancels hum, but it uses only the inputs that it senses. Read BIAS_SENSP: one bit per input.",
     marks: [{ reg: "BIAS_SENSP", field: "*" }],
-    mark: "Change BIAS_SENSP: which positive inputs go into the bias drive.",
+    mark: "Change BIAS_SENSP. Each bit that you turn on adds one input to the bias drive.",
     answer: { BIAS_SENSP: 0xff },
-    why: "BIAS_SENSP = 0xFF: all 8 scalp electrodes in the bias average. The loop gain goes from 14 to 63, and the hum falls about 4.3×.",
+    why: "BIAS_SENSP = 0xFF: all 8 scalp electrodes go into the bias drive. With the reference (through BIAS_SENSN), it senses 9 inputs, not 2. It pushes back 4.5× harder, and the hum falls about 4×.",
   },
 };
