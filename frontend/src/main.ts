@@ -377,7 +377,8 @@ function paintScore(m: MatchResult): void {
   const used = m.channels.filter((c) => m.used.includes(c.ch));
   const passed = used.filter((c) => c.pass).length;
   $(".lv-score .dots").innerHTML = used.map((c) => `<i class="${c.pass ? "ok" : ""}"></i>`).join("");
-  $(".lv-count").textContent = m.pass ? "Solved" : `${passed} / ${used.length} match`;
+  // The banner under it says "Solved", so the count stays a count.
+  $(".lv-count").textContent = `${passed} / ${used.length} match`;
   $(".lv-score").classList.toggle("good", m.pass);
 }
 
