@@ -2,9 +2,9 @@ import type { Bank, MatchResult, Setup, SimResult } from "../puzzle/types";
 import { along, pinPoint, pinSide } from "../pin-layout";
 import { labelEnd } from "../pin-view";
 import { ChipView } from "./chip-view";
-import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
+import { fitPhases, phaseStrip, renderBanner, timeAxis } from "./parts";
 import { drawGrid, drawTrace, rangeOf, screen, type Range } from "./traces";
-import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_COLOR, channelTag, pinNo, wires } from "./wiring";
+import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_BAND, channelTag, pinNo, wires } from "./wiring";
 
 // One level on the phone: analog in (top) → the chip (middle) → digital out (bottom).
 // The chip sits upright (its lettering reads normally), so its IN pins are on the bottom edge and
@@ -52,7 +52,6 @@ interface Row {
   el: HTMLElement;
   canvas: HTMLCanvasElement;
   tag?: HTMLButtonElement;
-  pip?: HTMLElement;
 }
 
 interface Wire {
@@ -86,7 +85,6 @@ export class LevelView {
   private tRange: Range[] = [];
   private wires: Wire[] = [];
   private heads: HTMLElement[] = [];
-  private spec = document.createElement("span");
   private banner = document.createElement("div");
   private queued = false;
   // Pins: the box's place on screen while it is not in the slot, the chip's fit, and the backdrop.
@@ -104,7 +102,6 @@ export class LevelView {
     this.inCard.className = "card card-in";
     this.outCard.className = "card card-out";
     this.slot.className = "chip-slot";
-    this.slot.innerHTML = `<span class="chip-cap"><b>ADS1299</b>8 channels<br>24-bit ΔΣ ADC</span>`;
     this.box.className = "chip-box";
     this.sig.className = "pin-sig";
     this.sig.setAttribute("aria-hidden", "true");
@@ -354,9 +351,7 @@ export class LevelView {
       portsOut.append(p);
       outPorts.push({ el: p, pin: pinNo(name), color: SERIAL_INK });
     }
-    this.spec.className = "spec-out";
     const outHead = head("Digital out");
-    outHead.append(this.spec);
     const scopeOut = scope("scope-out", rh);
     this.rowsOut = used.map((w) => {
       const r = row(w.ch, `<b><i></i>CH${w.ch}</b>`);
@@ -366,10 +361,7 @@ export class LevelView {
       tag.hidden = true;
       tag.addEventListener("click", () => this.onFocus(tag.dataset.reg!));
       r.el.querySelector(".screen")!.append(tag);
-      const p = pip();
-      r.el.append(p);
       r.tag = tag;
-      r.pip = p;
       scopeOut.rows.append(r.el);
       return r;
     });
@@ -377,7 +369,7 @@ export class LevelView {
     scopeOut.axis.append(timeAxis(setup.duration));
     const key = document.createElement("p");
     key.className = "key";
-    key.innerHTML = `<span><i class="k-out"></i>Output</span><span><i class="k-target"></i>Target · ${setup.spec}</span>`;
+    key.innerHTML = `<span><i class="k-out"></i>Output</span><span><i class="k-target"></i>Target</span>`;
     this.outCard.replaceChildren(portsOut, outHead, this.banner, scopeOut.el, key);
     this.heads = [scopeIn.el, scopeOut.el];
 
@@ -408,13 +400,11 @@ export class LevelView {
   setResult(sim: SimResult, m: MatchResult, bank: Bank): void {
     this.sim = sim;
     this.aRange = sim.analog.map((a) => rangeOf(a.uv));
-    outSpec(this.spec, sim, this.target!);
     const flags = sim.flags.filter((f) => !f.ch || m.used.includes(f.ch));
     renderBanner(this.banner, flags, m.pass, this.onFocus);
     this.rowsOut.forEach((r) => {
       const k = r.ch - 1;
       const ch = m.channels[k];
-      setPip(r.pip!, ch);
       const tag = channelTag(this.setup!, bank, sim.out[k], ch.pass);
       const flag = sim.flags.find((f) => f.ch === r.ch);
       r.tag!.hidden = !tag;
@@ -461,9 +451,9 @@ export class LevelView {
       if (!s) continue;
       const k = r.ch - 1;
       drawGrid(s, setup.duration, setup.phases, this.tRange[k]);
-      drawTrace(s, target.out[k].uv, this.tRange[k], { color: TARGET_COLOR, alpha: 0.8 });
+      drawTrace(s, target.out[k].uv, this.tRange[k], TARGET_BAND);
       const out = this.sim?.out[k];
-      if (out) drawTrace(s, out.uv, this.tRange[k], { color: CH_COLORS[k], glow: true, edges: true });
+      if (out) drawTrace(s, out.uv, this.tRange[k], { color: CH_COLORS[k], edges: true }); // no glow: a sharp line over the band
     }
   }
 
@@ -492,10 +482,6 @@ export class LevelView {
     }
     const nIn = this.wires.filter((w) => w.dir === "in").length;
     const nOut = this.wires.length - nIn;
-    // The caption sits at the bottom left, outside the output lanes. On a narrow phone there is
-    // no room; the chip's own lettering names it.
-    const cap = this.slot.querySelector<HTMLElement>(".chip-cap")!;
-    cap.classList.toggle("off", ox + cap.offsetLeft + cap.offsetWidth + 6 > x0 - GAP - nOut * LANE);
     for (const w of this.wires) {
       const r = w.from.getBoundingClientRect();
       const p = chip.pin(w.pin);
@@ -588,7 +574,10 @@ function scope(cls: string, rh: string) {
   const ph = document.createElement("div");
   ph.className = "playhead";
   ph.innerHTML = "<i></i>";
-  el.append(strip, rows, axis, ph);
+  const ylab = document.createElement("span");
+  ylab.className = "ylab";
+  ylab.textContent = "Voltage";
+  el.append(strip, rows, axis, ph, ylab);
   return { el, strip, rows, axis };
 }
 

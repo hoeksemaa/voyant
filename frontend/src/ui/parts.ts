@@ -1,4 +1,4 @@
-import type { ChannelMatch, Flag, Setup, SimResult } from "../puzzle/types";
+import type { Flag, Setup, SimResult } from "../puzzle/types";
 
 // Small parts that the desktop board and the phone cards share.
 
@@ -55,27 +55,6 @@ export function timeAxis(duration: number): HTMLElement {
   return axis;
 }
 
-const C = 2 * Math.PI * 7;
-
-/** Match pip: a ring that fills with the score; a green check when the channel passes. */
-export function pip(): HTMLElement {
-  const el = document.createElement("span");
-  el.className = "pip";
-  el.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true">
-    <circle class="pip-track" cx="10" cy="10" r="7"/>
-    <circle class="pip-arc" cx="10" cy="10" r="7" transform="rotate(-90 10 10)" stroke-dasharray="0 ${C}"/>
-    <circle class="pip-fill" cx="10" cy="10" r="9"/>
-    <path class="pip-check" d="M6 10.4 L8.8 13 L14 7.6"/>
-  </svg>`;
-  return el;
-}
-
-export function setPip(el: HTMLElement, m: ChannelMatch): void {
-  el.classList.toggle("pass", m.pass);
-  el.querySelector(".pip-arc")!.setAttribute("stroke-dasharray", `${(m.score * C).toFixed(2)} ${C}`);
-  el.title = m.pass ? `CH${m.ch} matches the target` : `CH${m.ch}: ${Math.round(m.score * 100)}% match`;
-}
-
 /** Full scale as the datasheet gives it: 4.5 V / gain → "±187.5 mV", "±2.25 V". */
 export function railText(uv: number): string {
   return uv >= 1e6 ? `±${+(uv / 1e6).toFixed(3)} V` : `±${+(uv / 1000).toFixed(2)} mV`;
@@ -113,7 +92,7 @@ export function renderBanner(el: HTMLElement, flags: Flag[], solved: boolean, on
   el.classList.remove("solved");
   if (solved && !global.some((f) => f.level === "act")) {
     el.classList.add("solved");
-    el.innerHTML = `<span class="solved-mark"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 10.4 L8.6 13.4 L14.5 7.2"/></svg></span><b>Solved.</b> The output matches the target.`;
+    el.innerHTML = `<span class="solved-mark"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 10.4 L8.6 13.4 L14.5 7.2"/></svg></span><b>Solved</b>`;
     return;
   }
   if (!global.length) return;

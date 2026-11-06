@@ -1,7 +1,7 @@
 import type { MatchResult, Setup, SimResult } from "../puzzle/types";
 import { outSpec } from "./parts";
 import { drawTrace, rangeOf, screen, type Range } from "./traces";
-import { CH_COLORS, TARGET_COLOR, wires } from "./wiring";
+import { CH_COLORS, TARGET_BAND, wires } from "./wiring";
 
 // The live strip at the top of the Firmware sheet: each channel's output over its target,
 // small, so a bit change shows at once without closing the sheet.
@@ -85,7 +85,7 @@ export class Strip {
       const s = screen(l.canvas);
       if (!s) continue;
       const k = l.ch - 1;
-      drawTrace(s, this.target.out[k].uv, this.ranges[k], { color: TARGET_COLOR, alpha: 0.75 });
+      drawTrace(s, this.target.out[k].uv, this.ranges[k], { ...TARGET_BAND, band: 2 });
       const out = this.sim?.out[k];
       if (out) drawTrace(s, out.uv, this.ranges[k], { color: CH_COLORS[k], edges: true });
     }
