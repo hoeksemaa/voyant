@@ -716,6 +716,8 @@ html.pins-open .wires { opacity: 0; }
 .ov li + li { margin-top: 4px; }
 .ov code { font-size: 12.5px; font-weight: 600; }
 .ov-time { color: var(--muted); font-size: 13px; }
+.ov-tech { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.ov-tech code { font-size: 11.5px; }
 .ov-phase { white-space: nowrap; }
 .ov .ov-pins { display: flex; flex-direction: column; gap: 3px; padding: 0; list-style: none; }
 .ov-pins li { display: grid; grid-template-columns: 70px 1fr; align-items: baseline; margin: 0; color: var(--muted); }
