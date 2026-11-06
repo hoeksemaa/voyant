@@ -3,7 +3,7 @@ import { along, pinPoint, pinSide } from "../pin-layout";
 import { labelEnd } from "../pin-view";
 import { ChipView } from "./chip-view";
 import { fitPhases, outSpec, phaseStrip, pip, renderBanner, setPip, timeAxis } from "./parts";
-import { drawGrid, drawTrace, rangeOf, rangeText, screen, type Range } from "./traces";
+import { drawGrid, drawTrace, rangeOf, screen, type Range } from "./traces";
 import { BIAS_COLOR, CH_COLORS, CH_INK, REF_COLOR, SERIAL_INK, TARGET_COLOR, channelTag, pinNo, wires } from "./wiring";
 
 // One level on the phone: analog in (top) → the chip (middle) → digital out (bottom).
@@ -51,7 +51,6 @@ interface Row {
   ch: number; // 1–8
   el: HTMLElement;
   canvas: HTMLCanvasElement;
-  scale: HTMLElement;
   tag?: HTMLButtonElement;
   pip?: HTMLElement;
 }
@@ -315,15 +314,10 @@ export class LevelView {
     // -- analog in --
     const ref = setup.electrodes.find((e) => e.pin === "SRB1");
     const bias = setup.electrodes.find((e) => e.pin === "BIASOUT");
-    const sw = setup.montage === "srb1" ? "SRB1" : "bipolar";
-    const inHead = head("1", "Analog in", `Board switch · <b>${sw}</b>`);
-    const chips = document.createElement("div");
-    chips.className = "ref-chips";
-    if (ref) chips.innerHTML += `<span class="lg lg-ref" title="${ref.label}"><i></i>${ref.id} → SRB1</span>`;
-    if (bias) chips.innerHTML += `<span class="lg lg-bias" title="${bias.label}"><i></i>${bias.id} → BIASOUT</span>`;
+    const inHead = head("Analog in");
     const scopeIn = scope("scope-in", rh);
     this.rowsIn = used.map((w) => {
-      const r = row(w.ch, `<b><i></i>CH${w.ch}</b><span>${w.pLabel} − ${w.nLabel}</span>`);
+      const r = row(w.ch, `<b><i></i>CH${w.ch}</b>`);
       scopeIn.rows.append(r.el);
       return r;
     });
@@ -346,7 +340,7 @@ export class LevelView {
     if (ref) port("port-ref", "REF", `${ref.id} → SRB1 (pin ${pinNo("SRB1")})`, REF_COLOR, pinNo("SRB1"));
     for (const w of used) port("", String(w.ch), `CH${w.ch}: ${w.pLabel} → IN${w.ch}P (pin ${pinNo(`IN${w.ch}P`)})`, CH_INK[w.ch - 1], pinNo(`IN${w.ch}P`));
     if (bias) port("port-bias", "BIAS", `BIASOUT (pin ${pinNo("BIASOUT")}) → ${bias.id}`, BIAS_COLOR, pinNo("BIASOUT"));
-    this.inCard.replaceChildren(inHead, chips, scopeIn.el, portsIn);
+    this.inCard.replaceChildren(inHead, scopeIn.el, portsIn);
 
     // -- digital out --
     const portsOut = document.createElement("div");
@@ -361,8 +355,8 @@ export class LevelView {
       outPorts.push({ el: p, pin: pinNo(name), color: SERIAL_INK });
     }
     this.spec.className = "spec-out";
-    const outHead = head("3", "Digital out", "");
-    outHead.querySelector(".note")!.append(this.spec);
+    const outHead = head("Digital out");
+    outHead.append(this.spec);
     const scopeOut = scope("scope-out", rh);
     this.rowsOut = used.map((w) => {
       const r = row(w.ch, `<b><i></i>CH${w.ch}</b>`);
@@ -417,12 +411,10 @@ export class LevelView {
     outSpec(this.spec, sim, this.target!);
     const flags = sim.flags.filter((f) => !f.ch || m.used.includes(f.ch));
     renderBanner(this.banner, flags, m.pass, this.onFocus);
-    this.rowsIn.forEach((r) => (r.scale.textContent = rangeText(this.aRange[r.ch - 1])));
     this.rowsOut.forEach((r) => {
       const k = r.ch - 1;
       const ch = m.channels[k];
       setPip(r.pip!, ch);
-      r.scale.textContent = rangeText(this.tRange[k]);
       const tag = channelTag(this.setup!, bank, sim.out[k], ch.pass);
       const flag = sim.flags.find((f) => f.ch === r.ch);
       r.tag!.hidden = !tag;
@@ -574,10 +566,10 @@ function rounded(pts: Pt2[], r: number): string {
   return `${d} L${f(z.x)},${f(z.y)}`;
 }
 
-function head(n: string, title: string, note: string): HTMLElement {
+function head(title: string): HTMLElement {
   const h = document.createElement("header");
   h.className = "card-head";
-  h.innerHTML = `<h2><span class="step">${n}</span>${title}</h2><span class="note">${note}</span>`;
+  h.innerHTML = `<h2>${title}</h2>`;
   return h;
 }
 
@@ -604,6 +596,6 @@ function row(ch: number, gut: string): Row {
   const el = document.createElement("div");
   el.className = "srow ch";
   el.style.setProperty("--c", CH_COLORS[ch - 1]);
-  el.innerHTML = `<div class="gut">${gut}</div><div class="screen"><canvas></canvas><span class="scale"></span></div>`;
-  return { ch, el, canvas: el.querySelector("canvas")!, scale: el.querySelector(".scale")! };
+  el.innerHTML = `<div class="gut">${gut}</div><div class="screen"><canvas></canvas></div>`;
+  return { ch, el, canvas: el.querySelector("canvas")! };
 }

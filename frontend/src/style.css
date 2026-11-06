@@ -225,38 +225,8 @@ code { font-family: var(--mono); }
 }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .card-head h2 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; font-weight: 700; }
-.step {
-  display: grid;
-  place-items: center;
-  width: 19px;
-  height: 19px;
-  border-radius: 6px;
-  background: var(--paper-2);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted);
-}
-.note { font-size: 12px; color: var(--muted); text-align: right; }
-.note b { color: var(--ink); font-weight: 600; }
 .spec-out { font-family: var(--mono); font-size: 11.5px; color: var(--ink); white-space: nowrap; }
 .spec-out .diff { all: unset; color: var(--red); font-weight: 600; }
-
-.ref-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 8px; }
-.lg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 7px;
-  background: var(--paper);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.lg i { width: 10px; height: 10px; border-radius: 50%; }
-.lg-ref i { border: 2.5px solid #5d636d; }
-.lg-bias i { border-radius: 2px; background: #8b5cf6; transform: rotate(45deg) scale(0.85); }
 
 .chip-slot { position: relative; height: 340px; margin: 0 -16px; }
 /* The chip's box: the slot, or (Pins) the full screen under the toolbar. level.ts sets its place
@@ -334,7 +304,8 @@ html.pins-open .wires { opacity: 0; }
 /* Scope: a dark screen inside the card. */
 .scope { position: relative; padding: 7px 8px 2px; border-radius: 12px; background: var(--scope); color: #e9ebee; }
 .srow { display: grid; column-gap: 6px; }
-.scope-in .srow, .scope-anim .srow { grid-template-columns: 62px minmax(0, 1fr); }
+.scope-in .srow { grid-template-columns: 34px minmax(0, 1fr); }
+.scope-anim .srow { grid-template-columns: 62px minmax(0, 1fr); }
 .scope-out .srow { grid-template-columns: 34px minmax(0, 1fr) 20px; }
 .srow.strip { height: 18px; margin-bottom: 3px; }
 .srow.axis { height: 18px; }
@@ -349,19 +320,6 @@ html.pins-open .wires { opacity: 0; }
 .gut b { display: flex; align-items: center; gap: 5px; font-weight: 600; color: #fff; }
 .gut b i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
 .gut span { overflow: hidden; color: rgba(255, 255, 255, 0.5); font-family: var(--mono); font-size: 10.5px; }
-.scale {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  padding: 0 3px;
-  border-radius: 3px;
-  background: rgba(18, 20, 24, 0.82);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  line-height: 13px;
-  color: rgba(255, 255, 255, 0.55);
-  pointer-events: none;
-}
 .tag {
   position: absolute;
   top: 50%;

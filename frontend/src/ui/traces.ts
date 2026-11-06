@@ -53,22 +53,6 @@ export function rangeOf(uv: Float32Array | null, flat = false): Range {
   return { lo: mid - span * 0.6, hi: mid + span * 0.6 };
 }
 
-/** A value in µV as short text: "40 µV", "1.4 mV", "205 mV". */
-export function fmtUv(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1e6) return `${+(v / 1e6).toPrecision(3)} V`;
-  if (a >= 1000) return `${+(v / 1000).toPrecision(a >= 10000 ? 3 : 2)} mV`;
-  return `${+v.toPrecision(2)} µV`;
-}
-
-/** Short text for a range: "±40 µV", or "205 mV ±480 µV" when the trace sits on an offset. */
-export function rangeText(r: Range): string {
-  const mid = (r.lo + r.hi) / 2;
-  const half = (r.hi - r.lo) / 2;
-  if (Math.abs(mid) < half) return `±${fmtUv(Math.max(Math.abs(r.lo), Math.abs(r.hi)))}`;
-  return `${fmtUv(mid)} ±${fmtUv(half)}`;
-}
-
 /** Time grid (1 s), phase boundaries, and a zero line when 0 is in range. */
 export function drawGrid(s: Screen, duration: number, phases: Phase[], r: Range | null): void {
   const { ctx, w, h, dpr } = s;
